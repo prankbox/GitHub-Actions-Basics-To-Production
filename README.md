@@ -14,6 +14,10 @@ It complements the video lectures with clear notes, diagrams, architecture expla
 
 This course focuses on building **strong conceptual understanding first**, and then gradually moves into production-grade CI/CD implementation patterns used in modern engineering organizations.
 
+> **Compatibility baseline:** Reviewed for GitHub.com on **August 23, 2026**. The examples use the current Node.js 24 action generation (`actions/checkout@v7`, `actions/setup-python@v6`, `actions/cache@v5`, `actions/upload-artifact@v7`, and `actions/download-artifact@v8`). GitHub Enterprise Server can support different action versions and features; verify the GHES release notes before copying GitHub.com examples unchanged.
+
+For production workflows, grant explicit least-privilege `GITHUB_TOKEN` permissions and pin third-party actions to a full commit SHA. Major tags are kept in the lessons for readability and Dependabot-friendly maintenance, but tags can move and are not an immutable security boundary.
+
 ---
 
 ### Course Introduction:
@@ -57,7 +61,7 @@ Your support motivates me to keep creating high-quality, free DevOps and Kuberne
 1. **Clone the repository:**
 
 ```bash
-git clone https://github.com/CloudWithVarJosh/GitHub-Actions-Basics-To-Production.git
+git clone https://github.com/prankbox/GitHub-Actions-Basics-To-Production.git
 ```
 
 2. **Navigate to the folder for the corresponding lecture/day:**
@@ -67,6 +71,16 @@ cd GitHub-Actions-Basics-To-Production/01-GitHub-Actions
 ```
 
 Each folder aligns with the corresponding video and builds on previous concepts.
+
+3. **Use GitHub CLI for course operations:**
+
+Follow [GitHub CLI for This Course](./GITHUB-CLI.md) to authenticate, trigger workflows, follow runs, inspect logs, download artifacts, and manage Actions secrets, variables, and environments without repeatedly switching to the web interface.
+
+```bash
+gh auth status
+gh workflow list
+gh run list --limit 10
+```
 
 ---
 

@@ -106,6 +106,8 @@ Composite Actions were covered in detail in **Lecture 11**, where we learned how
   >
   > When GitHub encounters this configuration, it starts the specified **Node.js runtime** on the runner and uses it to execute the JavaScript file referenced by the **`main`** property in the **`action.yml`** file.
   >
+  > **Self-Hosted Runner Requirement:** Node 24 actions require a sufficiently recent Actions runner. Keep self-hosted runners on the current supported release; GitHub enforces ongoing updates, and old runners may stop registering or receiving jobs. Node 20 reached end-of-life in April 2026 and should not be used for newly authored actions.
+  >
   > **Note:** Every programming language requires an execution environment. For languages such as **JavaScript**, **Python**, **Java**, and **C#**, this is typically provided by a language runtime. In contrast, languages such as **Go**, **Rust**, and **C++** are generally compiled into standalone executables, allowing them to run without requiring a separately installed language runtime.
 
 
@@ -218,11 +220,11 @@ Before starting this demo, ensure that you already:
 These concepts were covered extensively in **Lecture 01**.
 
 * [Lecture 01 Video](https://youtu.be/w4c_NIjO3XI)
-* [Lecture 01 GitHub Notes](https://github.com/CloudWithVarJosh/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions)
+* [Lecture 01 GitHub Notes](https://github.com/prankbox/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions)
 
 For this lecture, we will use the following repository:
 
-* **Repository Name:** `cwvj-gha-practice`
+* **Repository Name:** `gha-practice`
 * **Visibility:** Private
 
 > **Operational Note:** GitHub automatically discovers workflow files placed under the **`.github/workflows`** directory. When a workflow is triggered, GitHub provisions a runner, downloads the repository, and executes the workflow steps, including any Local or Remote Actions referenced by the workflow.
@@ -446,6 +448,9 @@ name: JavaScript Action Demo
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   demo:
     runs-on: ubuntu-latest
@@ -453,7 +458,7 @@ jobs:
     steps:
 
       - name: Checkout Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Install Action Dependencies
         working-directory: ./.github/actions/workflow-summary
@@ -462,7 +467,7 @@ jobs:
       - name: Execute JavaScript Action
         uses: ./.github/actions/workflow-summary
         with:
-          name: Cloud With VarJosh
+          name: GitHub Actions Learner
 ```
 
 #### Explanation
@@ -514,14 +519,16 @@ The **`working-directory`** property ensures that the command executes inside th
   uses: ./.github/actions/workflow-summary
 
   with:
-    name: Cloud With VarJosh
+    name: GitHub Actions Learner
 ```
 
 This step invokes the **Local JavaScript Action** that we created earlier. Notice that the syntax is identical to invoking a **Composite Action**.
 
 The **`uses`** keyword specifies the location of the Action, while the **`with`** block supplies the Action inputs.
 
-In this demo, we provide the value **`Cloud With VarJosh`** for the **`name`** input. Inside the Action, this value is retrieved using:
+This development example intentionally uses `./.github/actions/workflow-summary`. The preceding steps check out the repository and install dependencies into that runner-workspace directory, so the Action must execute from the modified workspace copy. For a production JavaScript Action, commit a bundled distribution and prefer `uses: $/.github/actions/workflow-summary`; the `$/` form loads the Action from the same repository and commit without requiring checkout merely to find it.
+
+In this demo, we provide the value **`GitHub Actions Learner`** for the **`name`** input. Inside the Action, this value is retrieved using:
 
 ```javascript
 const name = core.getInput("name");
@@ -544,7 +551,7 @@ Commit the changes and push them to your GitHub repository.
 ```bash
 git add .
 git commit -m "Demo: Add JavaScript Action demo"
-git remote add origin git@github.com:CloudWithVarJosh/cwvj-gha-practice.git
+git remote add origin git@github.com:prankbox/gha-practice.git
 git push -u origin main
 ```
 
@@ -553,6 +560,13 @@ Once the workflow YAML is pushed, GitHub automatically discovers the workflow an
 ---
 
 ### Step 7: Running the Workflow
+
+```bash
+gh workflow run javascript-action-demo.yaml --ref main
+gh run list --workflow javascript-action-demo.yaml --limit 5
+gh run watch RUN_ID --exit-status
+gh run view RUN_ID --log
+```
 
 Navigate to your repository on GitHub and open the **Actions** tab.
 
@@ -577,13 +591,13 @@ Expand the **Execute JavaScript Action** step. You should see output similar to 
 GitHub JavaScript Action
 ========================================
 
-Hello Cloud With VarJosh!
+Hello GitHub Actions Learner!
 
 Workflow Information
 ----------------------------------------
-Repository : CloudWithVarJosh/cwvj-gha-practice
+Repository : prankbox/gha-practice
 Workflow   : JavaScript Action Demo
-Actor      : CloudWithVarJosh
+Actor      : prankbox
 Event      : workflow_dispatch
 Branch     : refs/heads/main
 Run Number : 1
@@ -621,11 +635,11 @@ Before starting this demo, ensure that you already:
 These concepts were covered extensively in **Lecture 01**.
 
 * [Lecture 01 Video](https://youtu.be/w4c_NIjO3XI)
-* [Lecture 01 GitHub Notes](https://github.com/CloudWithVarJosh/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions)
+* [Lecture 01 GitHub Notes](https://github.com/prankbox/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions)
 
 For this lecture, we will use the following repository:
 
-* **Repository Name:** `cwvj-gha-practice`
+* **Repository Name:** `gha-practice`
 * **Visibility:** Private
 
 > **Operational Note:** Docker Actions execute as part of a GitHub Actions workflow. Whenever workflow YAML files are pushed into the repository, GitHub automatically discovers them and evaluates whether they should execute based on their configured workflow triggers.
@@ -888,20 +902,20 @@ name: Docker Action Demo
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   demo:
     runs-on: ubuntu-latest
 
     steps:
 
-      - name: Checkout Repository
-        uses: actions/checkout@v5
-
       - name: Execute Docker Action
-        uses: ./.github/actions/docker-system-info
+        uses: $/.github/actions/docker-system-info
 
         with:
-          name: Cloud With VarJosh
+          name: GitHub Actions Learner
 ```
 
 #### Explanation
@@ -912,15 +926,17 @@ Most of this workflow should already be familiar from the previous lectures. Let
 
 ```yaml
 - name: Execute Docker Action
-  uses: ./.github/actions/docker-system-info
+  uses: $/.github/actions/docker-system-info
 
   with:
-    name: Cloud With VarJosh
+    name: GitHub Actions Learner
 ```
 
 This step invokes the **Local Docker Action** that we created earlier.
 
 The **`uses`** keyword specifies the location of the Docker Action, while the **`with`** block supplies the Action inputs.
+
+The `$/` prefix resolves the Action from the same repository and commit as the workflow. Because this demo does not otherwise need repository files, no checkout step is required.
 
 Unlike the JavaScript Action demo, we do **not** execute **`npm install`** because Docker Actions package everything they need inside the Docker image.
 
@@ -955,6 +971,13 @@ Once the workflow YAML files are pushed, GitHub automatically discovers the work
 ---
 ### Step 8: Running the Workflow
 
+```bash
+gh workflow run docker-action-demo.yaml --ref main
+gh run list --workflow docker-action-demo.yaml --limit 5
+gh run watch RUN_ID --exit-status
+gh run view RUN_ID --log
+```
+
 Navigate to your repository on GitHub and open the **Actions** tab.
 
 Since this workflow is configured with the **`workflow_dispatch`** trigger, it must be started manually.
@@ -978,7 +1001,7 @@ Expand the **Execute Docker Action** step. You should see output similar to the 
 GitHub Docker Action
 ========================================
 
-Hello Cloud With VarJosh!
+Hello GitHub Actions Learner!
 
 Container Information
 ----------------------------------------

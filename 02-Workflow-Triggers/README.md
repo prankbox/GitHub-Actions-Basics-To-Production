@@ -19,6 +19,7 @@ If this **repository** helps you, give it a ⭐ to show your support and help ot
   - [3. Scheduled Triggers (`schedule`)](#3-scheduled-triggers-schedule)  
   - [4. External and Third-Party Triggers (`repository_dispatch`)](#4-external-and-third-party-triggers-repository_dispatch)  
   - [5. Cross-Workflow Triggers (`workflow_call`)](#5-cross-workflow-triggers-workflow_call)  
+  - [6. Workflow Lifecycle Triggers (`workflow_run`)](#6-workflow-lifecycle-triggers-workflow_run)
   - [Production Perspective on Workflow Trigger Categories](#production-perspective-on-workflow-trigger-categories)  
 - [**Demo:** Using Different Events to Trigger Workflows](#demo-using-different-events-to-trigger-workflows)  
   - [Step 1: Repository Setup and Authentication](#step-1-repository-setup-and-authentication)  
@@ -72,6 +73,7 @@ Broadly, workflow triggers can be categorized into the following categories:
 3. **Scheduled Triggers (`schedule`)** → Execute workflows periodically using POSIX cron-based schedules
 4. **External and Third-Party Triggers (`repository_dispatch`)** → Allow external systems outside GitHub to initiate workflow execution programmatically
 5. **Cross-Workflow Triggers (`workflow_call`)** → Allow workflows to invoke reusable workflows directly within GitHub Actions
+6. **Workflow Lifecycle Triggers (`workflow_run`)** → Start a separate workflow when another workflow is requested, enters progress, or completes
 
 For the complete list of supported workflow events:
 [https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows)
@@ -123,6 +125,19 @@ This event exposes a **Run workflow** button in the GitHub UI and also supports 
 > ```bash id="x8q2pw"
 > gh workflow run workflow.yaml
 > ```
+
+CLI-first workflow operations:
+
+```bash
+gh workflow list
+gh workflow view workflow.yaml --yaml
+gh workflow run workflow.yaml --ref main
+gh run list --workflow workflow.yaml --limit 5
+gh run watch RUN_ID --exit-status
+gh run view RUN_ID --log-failed
+```
+
+For events that occur automatically, such as `push`, `pull_request`, or `schedule`, omit `gh workflow run` and locate the resulting execution with `gh run list`. See the [course GitHub CLI guide](../GITHUB-CLI.md).
 >
 > * API-based execution using the GitHub Actions workflow dispatch endpoint:
 >
@@ -130,6 +145,8 @@ This event exposes a **Run workflow** button in the GitHub UI and also supports 
 > POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches
 > ```
 > This makes `workflow_dispatch` useful for both manual operational workflows and controlled programmatic workflow execution patterns.
+
+> **Important:** GitHub only accepts `workflow_dispatch` events when the workflow file exists on the repository's default branch. The caller may select another branch or tag as the execution `ref`, but the dispatch-enabled workflow must first exist on the default branch.
 
 
 #### Production Use-Case
@@ -160,6 +177,22 @@ on:
 
 GitHub officially supports a **minimum scheduling interval of 5 minutes** for scheduled workflows.
 
+Scheduled workflows use UTC by default. GitHub Actions also supports an IANA time zone alongside the cron expression:
+
+```yaml
+on:
+  schedule:
+    - cron: "30 5 * * 1-5"
+      timezone: "Asia/Tashkent"
+```
+
+Important scheduling constraints:
+
+* the workflow file must exist on the repository's default branch
+* scheduled runs execute the latest commit on the default branch
+* public-repository schedules are automatically disabled after 60 days without repository activity
+* during sufficiently high platform load, a scheduled run can be delayed or dropped
+
 #### Production Use-Case
 
 An enterprise DevSecOps platform may configure:
@@ -182,6 +215,8 @@ An enterprise DevSecOps platform may configure:
 `repository_dispatch` allows workflows to be triggered by systems operating outside GitHub. External platforms can initiate workflow execution programmatically by sending HTTP POST requests along with **custom event payloads** to the GitHub REST API.
 
 Unlike repository-native events, this trigger mechanism enables GitHub Actions to integrate with broader enterprise automation ecosystems involving operational tooling platforms, cloud services, observability systems, deployment orchestrators, and custom internal platforms.
+
+> **Important:** A `repository_dispatch` event only starts the workflow when the workflow file exists on the default branch. Its `client_payload` is external input and must be validated before it is used in shell commands, file paths, API requests, or privileged operations.
 
 
 #### Production Use-Case
@@ -217,6 +252,28 @@ A centralized platform engineering team may:
 
 ---
 
+### 6. Workflow Lifecycle Triggers (`workflow_run`)
+
+`workflow_run` starts a separate workflow in response to the lifecycle of another workflow. Supported activity types include `requested`, `in_progress`, and `completed`.
+
+```yaml
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+```
+
+This differs from `workflow_call`:
+
+* `workflow_call` directly invokes a reusable workflow as a job in the caller's workflow graph
+* `workflow_run` creates a separate workflow run after another workflow reaches the selected lifecycle state
+
+> **Security Warning:** A workflow started by `workflow_run` can receive secrets and write-capable tokens even when the triggering workflow was intentionally unprivileged. Never execute or trust unchecked artifacts, caches, or code produced by an untrusted triggering workflow.
+
+---
+
 ### Production Perspective on Workflow Trigger Categories
 
 In real production environments, organizations rarely rely on a single workflow trigger category. Modern CI/CD and platform engineering ecosystems typically combine multiple trigger mechanisms together depending on operational, security, governance, and deployment requirements.
@@ -228,6 +285,7 @@ Common production patterns include:
 * **`schedule` triggers** for background automation such as security scanning, dependency management, cleanup operations, compliance validation, and infrastructure reconciliation
 * **`repository_dispatch` triggers** for integrating GitHub Actions with external enterprise ecosystems such as observability platforms, ITSM systems, cloud automation tooling, and deployment orchestrators
 * **`workflow_call` triggers** for centralized platform engineering, reusable CI/CD standards, organizational governance, and large-scale workflow standardization
+* **`workflow_run` triggers** for intentionally separated workflow stages, especially when an unprivileged validation workflow must be followed by a carefully hardened privileged workflow
 
 > **Operational Insight:** In production systems, the workflow trigger strategy is usually determined by the application's operational requirements, deployment criticality, governance controls, security posture, and organizational automation maturity.
 
@@ -252,11 +310,11 @@ Lecture 01 Video:
 https://youtu.be/w4c_NIjO3XI
 
 Lecture 01 GitHub Notes:
-https://github.com/CloudWithVarJosh/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions
+https://github.com/prankbox/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions
 
 For this lecture, I will use the following repository throughout the demo:
 
-* Repository Name: `cwvj-gha-practice`
+* Repository Name: `gha-practice`
 * Visibility: `Private`
 
 ---
@@ -321,7 +379,7 @@ git commit -m "feat: add workflow event trigger demo"
 git branch -M main
 
 # Connect the local repository to the remote GitHub repository
-git remote add origin git@github.com:CloudWithVarJosh/cwvj-gha-practice.git
+git remote add origin git@github.com:prankbox/gha-practice.git
 
 # Push the local main branch to GitHub
 git push -u origin main
@@ -330,6 +388,12 @@ git push -u origin main
 > **Note:** If the repository already contains files from previous demos or lectures, the push operation may fail because of unrelated Git history. You can either clean the repository beforehand or use a force (`--force`) push carefully if appropriate for the demo environment.
 
 After pushing the workflow:
+
+```bash
+gh run list --workflow 01-ci-contexts.yaml --limit 5
+gh run watch RUN_ID --exit-status
+gh run view RUN_ID --log
+```
 
 * Navigate to the **Actions** tab inside the repository.
 * Observe that a new workflow run has been created automatically.
@@ -454,6 +518,12 @@ git push -u origin main
 
 After pushing the workflow:
 
+```bash
+gh run list --workflow 03-ci-runners.yaml --limit 5
+gh run watch RUN_ID --exit-status
+gh run view RUN_ID --verbose
+```
+
 * Navigate again to the **Actions** tab inside the repository.
 * Observe different workflow executions being created based on different trigger mechanisms.
 * Trigger the workflow manually using the **Run workflow** button available through `workflow_dispatch`.
@@ -535,6 +605,11 @@ Common standard runner labels include:
 * `ubuntu-latest`
 * `windows-latest`
 * `macos-latest`
+* `ubuntu-slim`
+
+`ubuntu-slim` is a single-CPU, 5 GB RAM runner intended for lightweight automation. Unlike the other standard labels above, it runs in an unprivileged container on a shared VM, has a 15-minute job timeout, and does not support operations such as Docker-in-Docker or filesystem mounts. Therefore, not every GitHub-hosted standard runner is a dedicated VM.
+
+GitHub also provides current x64 and arm64 labels for specific operating-system versions. Always consult the hosted-runner reference before hardcoding a label because available and `-latest` images change over time.
 
 ---
 ### Why Runner Sizing Matters

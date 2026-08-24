@@ -101,7 +101,7 @@ Needs Deployment URL
 During deployment, the workflow may generate a URL such as:
 
 ```text
-https://cwvj-demo.com
+https://demo.example.com
 ```
 
 The **Deploy Application Job** creates this value, while the **Send Notification Job** needs the exact same value to inform users where the application has been deployed.
@@ -134,7 +134,7 @@ Release Version
 In the previous example, the deployment job can generate:
 
 ```text id="g8s5a0"
-https://cwvj-demo.com
+https://demo.example.com
 ```
 
 and expose it as an **output**, allowing downstream jobs to consume the exact same value.
@@ -293,7 +293,7 @@ jobs:
       - name: Generate Release Version
         id: version
         run: |
-          echo "release_version=v1.0.1" >> $GITHUB_OUTPUT
+          echo "release_version=v1.0.1" >> "$GITHUB_OUTPUT"
 
       - name: Display Release Version
         run: |
@@ -309,7 +309,7 @@ jobs:
       - name: Generate Release Version
         id: version
         run: |
-          echo "release_version=v1.0.1" >> $GITHUB_OUTPUT
+          echo "release_version=v1.0.1" >> "$GITHUB_OUTPUT"
 ```
 
 * This step executes within the **`release-job`** job. Because Step Outputs are scoped to a job, they can be consumed by subsequent steps within the same job.
@@ -333,7 +333,7 @@ jobs:
 * The **`run`** block executes the following command:
 
   ```bash
-  echo "release_version=v1.0.1" >> $GITHUB_OUTPUT
+  echo "release_version=v1.0.1" >> "$GITHUB_OUTPUT"
   ```
 
 * This command generates a value named **`release_version`** with a value of **`v1.0.1`** and writes it to **`$GITHUB_OUTPUT`**.
@@ -352,7 +352,7 @@ jobs:
 The expression:
 
 ```bash
-echo "release_version=v1.0.1" >> $GITHUB_OUTPUT
+echo "release_version=v1.0.1" >> "$GITHUB_OUTPUT"
 ```
 
 can be broken down as:
@@ -371,7 +371,7 @@ Creates Version
 Step Output
 ```
 
-> **Important:** Writing a value to **`$GITHUB_OUTPUT`** does not automatically make it available to all jobs in the workflow. The value is initially associated only with the step that generated it. Since steps within a job execute sequentially, only **subsequent steps** can consume that output using the `steps.<step-id>.outputs.<output-name>` syntax. A step cannot consume outputs from a step that has not yet executed.
+> **Important:** Writing a value to **`$GITHUB_OUTPUT`** does not automatically make it available to all jobs in the workflow. The value is initially associated only with the step that generated it. In the default sequential execution model, subsequent steps can consume that output using the `steps.<step-id>.outputs.<output-name>` syntax. If the producing step runs in the background, dependent work must wait for it to complete before consuming its output.
 
 
 > **Connection to Previous Lectures:** The special file **`$GITHUB_OUTPUT`** is conceptually similar to **`$GITHUB_ENV`**, which we used in earlier lectures. Both files are provided by GitHub Actions and are used to persist information during workflow execution.
@@ -382,13 +382,13 @@ Step Output
 > For example:
 >
 > ```bash
-> echo "APPLICATION_VERSION=v1.0.1" >> $GITHUB_ENV
+> echo "APPLICATION_VERSION=v1.0.1" >> "$GITHUB_ENV"
 > ```
 >
 > creates an environment variable, whereas:
 >
 > ```bash
-> echo "release_version=v1.0.1" >> $GITHUB_OUTPUT
+> echo "release_version=v1.0.1" >> "$GITHUB_OUTPUT"
 > ```
 >
 > creates a Step Output.
@@ -500,7 +500,7 @@ Needs Deployment URL
 The deployment job may generate:
 
 ```text
-https://cwvj-demo.com
+https://demo.example.com
 ```
 
 The notification job then needs the exact same value to inform users where the application has been deployed.
@@ -518,7 +518,7 @@ jobs:
       - name: Deploy Application
         id: deploy
         run: |
-          echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
+          echo "deployment_url=https://demo.example.com" >> "$GITHUB_OUTPUT"
 
     outputs:
       deployment_url: ${{ steps.deploy.outputs.deployment_url }}
@@ -540,7 +540,7 @@ deploy-job:
     - name: Deploy Application
       id: deploy
       run: |
-        echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
+        echo "deployment_url=https://demo.example.com" >> "$GITHUB_OUTPUT"
 
   outputs:
     deployment_url: ${{ steps.deploy.outputs.deployment_url }}
@@ -563,7 +563,7 @@ deploy-job:
 The step executes:
 
 ```bash
-echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
+echo "deployment_url=https://demo.example.com" >> "$GITHUB_OUTPUT"
 ```
 
 * This command generates a value named **`deployment_url`** and stores it as a **Step Output**.
@@ -573,7 +573,7 @@ echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
 In this example, the step exposes:
 
 * Output Name → `deployment_url`
-* Output Value → `https://cwvj-demo.com`
+* Output Value → `https://demo.example.com`
 
 By default, Step Outputs are only accessible to other steps within the same job.
 
@@ -609,7 +609,7 @@ ${{ steps.deploy.outputs.deployment_url }}
 to:
 
 ```text
-https://cwvj-demo.com
+https://demo.example.com
 ```
 
 and assigns the resulting value to the Job Output:
@@ -701,7 +701,7 @@ can be broken down as:
 During execution, GitHub Actions resolves the expression to:
 
 ```text
-https://cwvj-demo.com
+https://demo.example.com
 ```
 
 and makes the value available inside the notification job.
@@ -763,7 +763,7 @@ Needs Deployment URL
 During deployment, the Reusable Workflow may generate:
 
 ```text
-https://cwvj-demo.com
+https://demo.example.com
 ```
 
 The Calling Workflow may then need this value for additional activities such as:
@@ -800,7 +800,7 @@ jobs:
       - name: Deploy Application
         id: deploy
         run: |
-          echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
+          echo "deployment_url=https://demo.example.com" >> "$GITHUB_OUTPUT"
 
     outputs:
       deployment_url: ${{ steps.deploy.outputs.deployment_url }}
@@ -833,7 +833,7 @@ jobs:
       - name: Deploy Application
         id: deploy
         run: |
-          echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
+          echo "deployment_url=https://demo.example.com" >> "$GITHUB_OUTPUT"
 
     outputs:
       deployment_url: ${{ steps.deploy.outputs.deployment_url }}
@@ -856,7 +856,7 @@ jobs:
 The step executes:
 
 ```bash
-echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
+echo "deployment_url=https://demo.example.com" >> "$GITHUB_OUTPUT"
 ```
 
 * As discussed in **Type 1**, this command generates a value named **`deployment_url`** and stores it as a **Step Output**.
@@ -868,7 +868,7 @@ echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
 In this example, the step exposes:
 
 * Output Name → **`deployment_url`**
-* Output Value → **`https://cwvj-demo.com`**
+* Output Value → **`https://demo.example.com`**
 
 By default, Step Outputs are only accessible to other steps within the same job.
 
@@ -907,7 +907,7 @@ ${{ steps.deploy.outputs.deployment_url }}
 to:
 
 ```text
-https://cwvj-demo.com
+https://demo.example.com
 ```
 
 and assigns the resulting value to the Job Output:
@@ -965,7 +965,7 @@ ${{ jobs.deploy-job.outputs.deployment_url }}
 to:
 
 ```text
-https://cwvj-demo.com
+https://demo.example.com
 ```
 
 and exposes the resulting value as a **Reusable Workflow Output** named **`deployment_url`**.
@@ -1042,7 +1042,7 @@ ${{ needs.deploy-job.outputs.deployment_url }}
 to:
 
 ```text
-https://cwvj-demo.com
+https://demo.example.com
 ```
 
 allowing the Calling Workflow to consume the exact value generated inside the Reusable Workflow.
@@ -1090,7 +1090,7 @@ allowing the Calling Workflow to consume the exact value generated inside the Re
 >
 > Output
 >   ↓
-> deployment_url = https://cwvj-demo.com
+> deployment_url = https://demo.example.com
 > ```
 >
 > Think of:
@@ -1156,7 +1156,7 @@ jobs:
         run: |
           echo "Deploying application..."
           sleep 3
-          echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
+          echo "deployment_url=https://demo.example.com" >> "$GITHUB_OUTPUT"
 
       - name: Display Deployment Details
         run: |
@@ -1217,7 +1217,7 @@ jobs:
     echo "Deploying application..."
     sleep 3
 
-    echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
+    echo "deployment_url=https://demo.example.com" >> "$GITHUB_OUTPUT"
 ```
 
 * This step simulates an application deployment.
@@ -1228,13 +1228,13 @@ jobs:
 The expression:
 
 ```bash
-echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
+echo "deployment_url=https://demo.example.com" >> "$GITHUB_OUTPUT"
 ```
 
 can be broken down as:
 
 * **`deployment_url`** refers to the output name.
-* **`https://cwvj-demo.com`** refers to the output value.
+* **`https://demo.example.com`** refers to the output value.
 * **`$GITHUB_OUTPUT`** is the special file used by GitHub Actions to capture Step Outputs.
 
 Flow:
@@ -1286,7 +1286,7 @@ can be broken down as:
 During execution, GitHub Actions resolves the expression to:
 
 ```text
-https://cwvj-demo.com
+https://demo.example.com
 ```
 
 and prints the value to the workflow logs.
@@ -1345,6 +1345,13 @@ git push
 
 ### Step 3: Execute the Workflow
 
+```bash
+gh workflow run 01-step-outputs-demo.yaml --ref main
+gh run list --workflow 01-step-outputs-demo.yaml --limit 5
+gh run watch RUN_ID --exit-status
+gh run view RUN_ID --log
+```
+
 Navigate to:
 
 ```text
@@ -1373,10 +1380,10 @@ Deploying application...
 
 Application deployed successfully.
 Deployment URL:
-https://cwvj-demo.com
+https://demo.example.com
 
 Sending notification...
-Application URL: https://cwvj-demo.com
+Application URL: https://demo.example.com
 Notification sent successfully.
 ```
 
@@ -1444,7 +1451,7 @@ jobs:
         run: |
           echo "Deploying application..."
           sleep 3
-          echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
+          echo "deployment_url=https://demo.example.com" >> "$GITHUB_OUTPUT"
 
     outputs:
       deployment_url: ${{ steps.deploy.outputs.deployment_url }}
@@ -1496,7 +1503,7 @@ jobs:
         run: |
           echo "Deploying application..."
           sleep 3
-          echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
+          echo "deployment_url=https://demo.example.com" >> "$GITHUB_OUTPUT"
 
     outputs:
       deployment_url: ${{ steps.deploy.outputs.deployment_url }}
@@ -1522,7 +1529,7 @@ The job contains the following step:
     echo "Deploying application..."
     sleep 3
 
-    echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
+    echo "deployment_url=https://demo.example.com" >> "$GITHUB_OUTPUT"
 ```
 
 * The step is assigned the identifier **`deploy`** using:
@@ -1541,7 +1548,7 @@ The step executes:
 echo "Deploying application..."
 sleep 3
 
-echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
+echo "deployment_url=https://demo.example.com" >> "$GITHUB_OUTPUT"
 ```
 
 * The first command simulates an application deployment.
@@ -1555,7 +1562,7 @@ echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
 In this example, the step exposes:
 
 * Output Name → **`deployment_url`**
-* Output Value → **`https://cwvj-demo.com`**
+* Output Value → **`https://demo.example.com`**
 
 By default, Step Outputs are only accessible to other steps within the same job.
 
@@ -1594,7 +1601,7 @@ ${{ steps.deploy.outputs.deployment_url }}
 to:
 
 ```text
-https://cwvj-demo.com
+https://demo.example.com
 ```
 
 and assigns the resulting value to the Job Output:
@@ -1698,7 +1705,7 @@ can be broken down as:
 During execution, GitHub Actions resolves the expression to:
 
 ```text
-https://cwvj-demo.com
+https://demo.example.com
 ```
 
 and makes the value available inside the notification job.
@@ -1743,6 +1750,13 @@ git push
 
 ### Step 3: Execute the Workflow
 
+```bash
+gh workflow run 02-job-outputs-demo.yaml --ref main
+gh run list --workflow 02-job-outputs-demo.yaml --limit 5
+gh run watch RUN_ID --exit-status
+gh run view RUN_ID --log
+```
+
 Navigate to:
 
 ```text
@@ -1770,7 +1784,7 @@ Expected output:
 Deploying application...
 
 Sending notification...
-Application URL: https://cwvj-demo.com
+Application URL: https://demo.example.com
 Notification sent successfully.
 ```
 
@@ -1852,7 +1866,7 @@ jobs:
         run: |
           echo "Deploying application..."
           sleep 3
-          echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
+          echo "deployment_url=https://demo.example.com" >> "$GITHUB_OUTPUT"
 
     outputs:
       deployment_url: ${{ steps.deploy.outputs.deployment_url }}
@@ -1891,7 +1905,7 @@ jobs:
         run: |
           echo "Deploying application..."
           sleep 3
-          echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
+          echo "deployment_url=https://demo.example.com" >> "$GITHUB_OUTPUT"
 
     outputs:
       deployment_url: ${{ steps.deploy.outputs.deployment_url }}
@@ -1916,7 +1930,7 @@ The job contains the following step:
   run: |
     echo "Deploying application..."
     sleep 3
-    echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
+    echo "deployment_url=https://demo.example.com" >> "$GITHUB_OUTPUT"
 ```
 
 * The step is assigned the identifier **`deploy`** using:
@@ -1934,7 +1948,7 @@ The step executes:
 ```bash
 echo "Deploying application..."
 sleep 3
-echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
+echo "deployment_url=https://demo.example.com" >> "$GITHUB_OUTPUT"
 ```
 
 * The first command simulates an application deployment.
@@ -1948,7 +1962,7 @@ echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
 In this example, the step exposes:
 
 * Output Name → **`deployment_url`**
-* Output Value → **`https://cwvj-demo.com`**
+* Output Value → **`https://demo.example.com`**
 
 By default, Step Outputs are only accessible to other steps within the same job.
 
@@ -1987,7 +2001,7 @@ ${{ steps.deploy.outputs.deployment_url }}
 to:
 
 ```text
-https://cwvj-demo.com
+https://demo.example.com
 ```
 
 and assigns the resulting value to the Job Output:
@@ -2058,7 +2072,7 @@ ${{ jobs.deploy-job.outputs.deployment_url }}
 to:
 
 ```text
-https://cwvj-demo.com
+https://demo.example.com
 ```
 
 and exposes the resulting value as a **Reusable Workflow Output** named **`deployment_url`**.
@@ -2239,7 +2253,7 @@ ${{ needs.deploy-job.outputs.deployment_url }}
 to:
 
 ```text
-https://cwvj-demo.com
+https://demo.example.com
 ```
 
 and makes the value available inside the notification job.
@@ -2281,6 +2295,13 @@ git push
 
 ### Step 4: Execute the Workflow
 
+```bash
+gh workflow run 03-reusable-workflow-outputs-demo.yaml --ref main
+gh run list --workflow 03-reusable-workflow-outputs-demo.yaml --limit 5
+gh run watch RUN_ID --exit-status
+gh run view RUN_ID --log
+```
+
 Navigate to:
 
 ```text
@@ -2309,7 +2330,7 @@ Deploying application...
 
 Sending notification...
 Application URL:
-https://cwvj-demo.com
+https://demo.example.com
 Notification sent successfully.
 ```
 

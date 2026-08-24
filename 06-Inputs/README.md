@@ -524,11 +524,11 @@ Before starting this demo, ensure that you already:
 
 These concepts were covered extensively in **Lecture 01.**
 * [Lecture 01 Video](https://youtu.be/w4c_NIjO3XI?)
-* [Lecture 01 GitHub Notes](https://github.com/CloudWithVarJosh/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions?)
+* [Lecture 01 GitHub Notes](https://github.com/prankbox/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions)
 
 For this lecture, we will use the following repository:
 
-* **Repository Name:** `cwvj-gha-practice`
+* **Repository Name:** `gha-practice`
 * **Visibility:** Private
 
 > **Operational Note:** GitHub Actions workflows execute directly inside repositories. Whenever workflow YAML files are pushed into the repository, GitHub automatically detects and evaluates them based on configured workflow triggers.
@@ -582,7 +582,7 @@ Use the following values:
 
 | Property        | Value            |
 | --------------- | ---------------- |
-| Repository Name | `cwvj-flask-app` |
+| Repository Name | `flask-app` |
 | Visibility      | Private          |
 
 > **Operational Insight:** Container registries act as centralized repositories for storing and distributing container images. Modern CI/CD pipelines commonly publish validated images into registries before deployment to development, staging, or production environments.
@@ -637,6 +637,15 @@ Create the following repository secret:
 | ----------------- | ---------------------- |
 | `DOCKERHUB_TOKEN` | DockerHub Access Token |
 
+CLI-first alternative:
+
+```bash
+gh secret set DOCKERHUB_TOKEN
+gh secret list
+```
+
+Paste the token at the interactive prompt so it is not written into shell history.
+
 > **Why GitHub Secrets?** GitHub automatically injects secrets into workflow runtimes while masking secret values in workflow logs to prevent accidental exposure.
 
 > **Scope Consideration:** GitHub Secrets can be defined at multiple levels. **Repository-level** secrets are accessible only within a specific repository, whereas **organization-level** secrets can be shared across multiple repositories within a GitHub organization. The appropriate scope depends on security requirements, ownership boundaries, and reuse needs.
@@ -660,7 +669,7 @@ app = Flask(__name__)
 @app.get("/")
 def home():
     return jsonify(
-        message="Welcome to Cloud With VarJosh",
+        message="Welcome to the GitHub Actions Demo",
         platform="GitHub Actions",
         runtime="Docker + Flask"
     )
@@ -772,7 +781,7 @@ Create the following dependency file:
 **`requirements.txt`**
 
 ```text id="t6m2qp"
-flask==3.1.1
+flask==3.1.3
 ```
 
 This file defines the Python dependencies required by the application.
@@ -787,7 +796,7 @@ In this demo, we are using **Flask**, which is a lightweight Python web framewor
 The line:
 
 ```text id="m7q2pk"
-flask==3.1.1
+flask==3.1.3
 ```
 
 tells Python to install:
@@ -828,8 +837,8 @@ on:
         default: true
 
 env:
-  APPLICATION_NAME: cwvj-flask-app
-  DOCKER_USERNAME: cloudwithvarjosh
+  APPLICATION_NAME: flask-app
+  DOCKER_USERNAME: prankbox
   IMAGE_TAG: v1.0.1
 
 jobs:
@@ -838,7 +847,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Display Input Values
         run: |
@@ -862,7 +871,7 @@ jobs:
 
       - name: Login to DockerHub
         if: ${{ inputs.environment != 'dev' }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -979,7 +988,7 @@ Perform Smoke Test → false
 > curl -X POST \
 >   -H "Accept: application/vnd.github+json" \
 >   -H "Authorization: Bearer <GITHUB_TOKEN>" \
->   https://api.github.com/repos/CloudWithVarJosh/cwvj-gha-practice/actions/workflows/01-workflow-inputs-demo.yaml/dispatches \
+>   https://api.github.com/repos/prankbox/gha-practice/actions/workflows/01-workflow-inputs-demo.yaml/dispatches \
 >   -d '{
 >     "ref": "main"
 >   }'
@@ -1004,8 +1013,8 @@ Perform Smoke Test → false
 
 ```yaml
 env:
-  APPLICATION_NAME: cwvj-flask-app
-  DOCKER_USERNAME: cloudwithvarjosh
+  APPLICATION_NAME: flask-app
+  DOCKER_USERNAME: prankbox
   IMAGE_TAG: v1.0.1
 ```
 
@@ -1032,7 +1041,7 @@ jobs:
 * This block creates a workflow job named **`flask-ci-job`**.
 * A **job** acts as a logical unit of work and contains all the steps required to achieve a specific objective.
 * In this demo, the job is responsible for **building the Docker image**, performing **environment-specific validation**, optionally executing **smoke tests**, publishing images when required, and simulating **deployment activities**.
-* All steps within this job execute sequentially because they belong to the same job and depend on the successful completion of previous steps.
+* These steps use the default sequential behavior because each operation depends on successful completion of the preceding operation. GitHub Actions also supports explicitly configured background and parallel steps for independent work.
 
 > **Production Insight:** As CI/CD pipelines grow, organizations often split workflows into multiple jobs such as **Build**, **Test**, **Security Scan**, **Package**, and **Deploy**. This improves separation of responsibilities, enables parallel execution where appropriate, and makes large pipelines easier to maintain, troubleshoot, and scale.
 
@@ -1055,7 +1064,7 @@ runs-on: ubuntu-latest
 
 ```yaml
 - name: Checkout Repository
-  uses: actions/checkout@v6
+  uses: actions/checkout@v7
 ```
 
 * This step downloads the **repository contents** from GitHub onto the runner.
@@ -1125,7 +1134,7 @@ runs-on: ubuntu-latest
 ```yaml
 - name: Login to DockerHub
   if: ${{ inputs.environment != 'dev' }}
-  uses: docker/login-action@v3
+  uses: docker/login-action@v4
   with:
     username: ${{ env.DOCKER_USERNAME }}
     password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -1163,15 +1172,15 @@ runs-on: ubuntu-latest
 >
 > **The key takeaway is that CI/CD workflows should reflect the requirements of the application and organization.** Every application, microservice, and engineering team has different needs related to **quality**, **security**, **compliance**, **cost**, **artifact retention**, and **release management**, so workflow design decisions should be made accordingly.
 
-> **Production Consideration:** In this demo, we use a fixed image tag (**`cloudwithvarjosh/cwvj-flask-app:v1.0.1`**) to keep the workflow simple and focus on Workflow Inputs. In production environments, teams typically use **unique and immutable tags** such as **Git commit SHAs**, **build numbers**, **release versions**, or a combination of these values. Like we've seen in the previous lecture.
+> **Production Consideration:** In this demo, we use a fixed image tag (**`prankbox/flask-app:v1.0.1`**) to keep the workflow simple and focus on Workflow Inputs. In production environments, teams typically use **unique and immutable tags** such as **Git commit SHAs**, **build numbers**, **release versions**, or a combination of these values. Like we've seen in the previous lecture.
 >
 > Examples:
 >
 > ```text
-> cloudwithvarjosh/cwvj-flask-app:v1.0.1
-> cloudwithvarjosh/cwvj-flask-app:v1.0.1-build-245
-> cloudwithvarjosh/cwvj-flask-app:9f2c8a7
-> cloudwithvarjosh/cwvj-flask-app:2026.06.12.245
+> prankbox/flask-app:v1.0.1
+> prankbox/flask-app:v1.0.1-build-245
+> prankbox/flask-app:9f2c8a7
+> prankbox/flask-app:2026.06.12.245
 > ```
 >
 > Using immutable tags improves **traceability**, **auditability**, **rollback capability**, and **deployment reliability**.
@@ -1282,7 +1291,7 @@ git add .
 git commit -m "feat: add workflow inputs demo"
 
 # Associate the local repository with the remote GitHub repository (one-time setup)
-git remote add origin git@github.com:CloudWithVarJosh/cwvj-gha-practice.git
+git remote add origin git@github.com:prankbox/gha-practice.git
 
 # Push the code to GitHub and configure the local branch to track origin/main
 git push -u origin main
@@ -1331,6 +1340,20 @@ Select the desired values and click **Run Workflow** to start the workflow.
 ---
 
 ### Step 5: Running the Workflow
+
+The CLI is the fastest way to supply and repeat workflow inputs:
+
+```bash
+gh workflow run 01-workflow-inputs-demo.yaml \
+  --ref main \
+  -f environment=dev \
+  -f perform_smoke_test=true
+
+gh run list --workflow 01-workflow-inputs-demo.yaml --limit 5
+gh run watch RUN_ID --exit-status
+```
+
+Change the inputs and repeat the command to compare behavior without reopening a form in the web UI.
 
 Inside the repository:
 
@@ -1960,7 +1983,7 @@ git add .
 git commit -m "feat: add reusable workflow inputs demo"
 
 # Associate the local repository with the remote GitHub repository (one-time setup)
-git remote add origin git@github.com:CloudWithVarJosh/cwvj-gha-practice.git
+git remote add origin git@github.com:prankbox/gha-practice.git
 
 # Push the code to GitHub and configure the local branch to track origin/main
 git push -u origin main
@@ -1986,6 +2009,15 @@ The workflow can also be executed manually from the **GitHub Actions UI** using 
 ---
 
 ### Step 4: Observe and Verify Workflow Execution
+
+```bash
+gh workflow run payment-service-deployment.yaml --ref main
+gh run list --workflow payment-service-deployment.yaml --limit 5
+gh run watch RUN_ID --exit-status
+gh run view RUN_ID --verbose
+```
+
+The reusable `deploy.yaml` workflow is invoked by the caller and cannot be dispatched directly unless it also defines `workflow_dispatch`.
 
 Navigate to:
 

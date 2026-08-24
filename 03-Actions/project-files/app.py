@@ -6,7 +6,7 @@ app = Flask(__name__)
 @app.get("/")
 def home():
     return jsonify(
-        message="Welcome to Cloud With VarJosh",
+        message="Welcome to the GitHub Actions Demo",
         platform="GitHub Actions",
         runtime="Docker + Flask"
     )

@@ -401,11 +401,11 @@ These concepts were covered extensively in **Lecture 01**.
   [https://youtu.be/w4c_NIjO3XI](https://youtu.be/w4c_NIjO3XI)
 
 * **Lecture 01 GitHub Notes**
-  [https://github.com/CloudWithVarJosh/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions](https://github.com/CloudWithVarJosh/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions)
+  [https://github.com/prankbox/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions](https://github.com/prankbox/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions)
 
 For this lecture, we will use the following repository:
 
-* **Repository Name:** `cwvj-gha-practice`
+* **Repository Name:** `gha-practice`
 * **Visibility:** Private
 
 > **Operational Note:** GitHub Actions workflows execute directly inside repositories. Whenever workflow YAML files are pushed into the repository, GitHub automatically discovers them and evaluates whether they should execute based on their configured workflow triggers.
@@ -459,14 +459,14 @@ import os
 
 app = Flask(__name__)
 
-print("Cloud With VarJosh Flask Application Started")
+print("Flask Application Started")
 
 @app.get("/")
 def home():
     print("Home endpoint invoked")
 
     return jsonify(
-        message="Welcome to Cloud With VarJosh",
+        message="Welcome to the GitHub Actions Demo",
         platform="GitHub Actions",
         runtime="Python + Flask"
     )
@@ -496,7 +496,7 @@ This application:
 The application generates log messages such as:
 
 ```text
-Cloud With VarJosh Flask Application Started
+Flask Application Started
 Home endpoint invoked
 Health endpoint invoked
 ```
@@ -515,7 +515,7 @@ During the workflow, we will start the application, validate it using the **`/he
 
 * `app = Flask(__name__)` creates the Flask application object which acts as the main web application instance.
 
-* `print("Cloud With VarJosh Flask Application Started")` generates a startup log message when the application launches.
+* `print("Flask Application Started")` generates a startup log message when the application launches.
 
 * `@app.get("/")` defines an HTTP GET endpoint for the root path `/`.
 
@@ -544,7 +544,7 @@ Create the following dependency file.
 **`requirements.txt`**
 
 ```text
-flask==3.1.1
+flask==3.1.3
 ```
 
 #### Understanding the Requirements File
@@ -590,7 +590,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -898,7 +898,7 @@ git add .
 git commit -m "feat: add matrix strategy demo"
 
 # Associate the local repository with the remote GitHub repository (one-time setup)
-git remote add origin git@github.com:CloudWithVarJosh/cwvj-gha-practice.git
+git remote add origin git@github.com:prankbox/gha-practice.git
 
 # Push the code to GitHub and configure the local branch to track origin/main
 git push -u origin main
@@ -937,6 +937,16 @@ to start the workflow.
 ---
 
 ### Step 5: Running the Workflow
+
+```bash
+gh workflow run 01-matrix-demo.yaml --ref main
+gh run list --workflow 01-matrix-demo.yaml --limit 5
+gh run watch RUN_ID --exit-status
+gh run view RUN_ID --verbose
+gh run view RUN_ID --log-failed
+```
+
+`--verbose` is particularly useful here because it shows the jobs generated from the matrix.
 
 Inside the repository:
 

@@ -229,7 +229,7 @@ Developer → Build → Production Job
                    Continue Execution
 ```
 
-Some organizations also configure a **Wait Timer** after approval to provide a brief window for **final operational checks**, **deployment coordination**, or a **last-minute cancellation** before the job continues.
+Some organizations also configure a **Wait Timer**. The timer begins when the environment-referencing job is initially triggered, while required-reviewer approval is evaluated as a separate protection rule. The job starts only after every configured rule has passed.
 
 Without these controls, an unauthorized or unintended job could execute against a sensitive Environment, potentially resulting in **service outages**, **failed releases**, **security issues**, or **compliance violations**.
 
@@ -291,7 +291,7 @@ Depending on how the Environment is configured, GitHub can automatically provide
 | **Environment Secrets**            | Provide environment-specific credentials to the job.                             |
 | **Deployment Branch Restrictions** | Restrict which branches are allowed to use the Environment.                      |
 | **Required Reviewers**             | Require manual approval before jobs associated with the Environment can proceed. |
-| **Wait Timer**                     | Delay job execution after approval for a configurable duration.                  |
+| **Wait Timer**                     | Delay a job for a configurable duration after the job is initially triggered.    |
 | **Deployment History**             | Record deployment activity for auditing and traceability.                        |
 
 ---
@@ -333,6 +333,37 @@ Job → Associate Development Environment → Load Development Variables & Secre
 The important point is that **the workflow logic remains almost identical**, while the job behavior changes based on the **associated Environment**.
 
 > **Key Observation:** GitHub Actions **Environments are environment governance mechanisms**, not deployment tools. They associate a job with an Environment before execution, allowing GitHub to apply **environment-specific configuration**, evaluate **deployment protection rules**, and record **deployment history** without increasing workflow complexity. If the job performs a deployment, it remains the responsibility of the workflow to invoke the appropriate deployment tool.
+
+---
+
+### Using an Environment Without Creating a Deployment
+
+By default, a job that references an Environment creates a GitHub deployment record. When a job needs Environment Variables, Environment Secrets, branch restrictions, reviewers, or a wait timer but should not appear in deployment history, set `deployment: false`:
+
+```yaml
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      deployment: false
+
+    steps:
+      - name: Run integration tests
+        env:
+          API_URL: ${{ vars.API_URL }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+        run: ./run-integration-tests.sh
+```
+
+With `deployment: false`:
+
+* the job can still access Environment Variables and Secrets
+* deployment branch rules, wait timers, and required reviewers still apply
+* GitHub does not create a deployment object or update deployment history
+* the job fails if the Environment uses a custom GitHub App deployment protection rule, because those rules require a deployment object
+
+The value may also be an expression, such as `deployment: ${{ github.ref_name == 'main' }}`.
 
 ---
 
@@ -414,9 +445,9 @@ Evaluate Job Condition (if:)
         ↓
 Associate Job with prod Environment
         ↓
-Load Environment Configuration
-        ↓
 Evaluate Protection Rules
+        ↓
+Load Environment Configuration
         ↓
 Execute Job
 ```
@@ -452,11 +483,11 @@ Before starting this demo, ensure that you already:
 These concepts were covered extensively in **Lecture 01**.
 
 * [Lecture 01 Video](https://youtu.be/w4c_NIjO3XI)
-* [Lecture 01 GitHub Notes](https://github.com/CloudWithVarJosh/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions)
+* [Lecture 01 GitHub Notes](https://github.com/prankbox/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions)
 
 For this lecture, we will use the following repository:
 
-* **Repository Name:** `cwvj-gha-practice`
+* **Repository Name:** `gha-practice`
 * **Visibility:** Private
 
 > **Operational Note:** GitHub Actions workflows execute directly inside repositories. Whenever workflow YAML files are pushed into the repository, GitHub automatically discovers them and evaluates whether they should execute based on their configured workflow triggers.
@@ -495,7 +526,7 @@ import os
 
 app = Flask(__name__)
 
-print("Cloud With VarJosh Flask Application Started")
+print("Flask Application Started")
 
 
 @app.get("/")
@@ -503,7 +534,7 @@ def home():
     print("Home endpoint invoked")
 
     return jsonify(
-        message="Welcome to Cloud With VarJosh",
+        message="Welcome to the GitHub Actions Demo",
         platform="GitHub Actions",
         runtime="Docker + Flask"
     )
@@ -560,7 +591,7 @@ Create the following dependency file:
 **`requirements.txt`**
 
 ```text
-flask==3.1.1
+flask==3.1.3
 ```
 
 > **Note:** This is the same dependency file used throughout the course. Simply reuse the existing `requirements.txt` if you have already created it.
@@ -591,20 +622,20 @@ Configure the repository using the following settings.
 
 | Setting             | Value            |
 | ------------------- | ---------------- |
-| **Repository Name** | `cwvj-flask-app` |
+| **Repository Name** | `flask-app` |
 | **Visibility**      | **Private**      |
 
 Once created, the repository URL should resemble:
 
 ```text
-docker.io/<your-dockerhub-username>/cwvj-flask-app
+docker.io/<your-dockerhub-username>/flask-app
 ```
 
 Later in this lecture, our workflow will publish Docker images to this repository using tags similar to:
 
 ```text
-<your-dockerhub-username>/cwvj-flask-app:<git-commit-sha>
-<your-dockerhub-username>/cwvj-flask-app:latest
+<your-dockerhub-username>/flask-app:<git-commit-sha>
+<your-dockerhub-username>/flask-app:latest
 ```
 
 > **Operational Note:** We are using a **private repository** because it more closely reflects how organizations manage container images in production. Private repositories help prevent unauthorized access and allow organizations to control who can **pull**, **push**, or **manage** container images.
@@ -692,6 +723,17 @@ Next, create the following **Repository Secret**.
 | ----------------- | --------------------------------------------------------------- |
 | `DOCKERHUB_TOKEN` | Used by the Build Job to securely authenticate with Docker Hub. |
 
+Configure both from the terminal:
+
+```bash
+gh variable set DOCKERHUB_USERNAME --body prankbox
+gh secret set DOCKERHUB_TOKEN
+gh variable list
+gh secret list
+```
+
+The secret command prompts for the token value.
+
 > **Why Repository Scope?** The Build Job is part of the **Continuous Integration (CI)** pipeline and executes before any deployment begins. Since the Docker image is built using the same Docker Hub account regardless of the target deployment environment, these values belong at the **Repository** scope rather than being duplicated across multiple Environments.
 
 ---
@@ -711,8 +753,25 @@ For each Environment, create the following **Variables**.
 
 | Variable     | Dev               | Prod          | Why                                                                |
 | ------------ | ----------------- | ------------- | ------------------------------------------------------------------ |
-| `APP_URL`    | `app.dev.cwvj.io` | `app.cwvj.io` | Demonstrates environment-specific application configuration.       |
+| `APP_URL`    | `dev.example.com` | `prod.example.com` | Demonstrates environment-specific application configuration.       |
 | `DEBUG_MODE` | `true`            | `false`       | Demonstrates how application behavior changes across environments. |
+
+CLI-first environment setup:
+
+```bash
+gh api --method PUT repos/{owner}/{repo}/environments/dev
+gh api --method PUT repos/{owner}/{repo}/environments/prod
+
+gh variable set APP_URL --env dev --body dev.example.com
+gh variable set DEBUG_MODE --env dev --body true
+gh variable set APP_URL --env prod --body prod.example.com
+gh variable set DEBUG_MODE --env prod --body false
+
+gh variable list --env dev
+gh variable list --env prod
+```
+
+`gh api` fills `{owner}` and `{repo}` from the current Git repository. Use the UI later in the lesson for visual protection-rule configuration, or use the REST API when automating a known policy.
 
 Notice that we are intentionally **not creating any Secrets** in this step.
 
@@ -768,7 +827,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Login to Docker Hub
         uses: docker/login-action@v4
@@ -782,8 +841,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ vars.DOCKERHUB_USERNAME }}/cwvj-flask-app:${{ github.sha }}
-            ${{ vars.DOCKERHUB_USERNAME }}/cwvj-flask-app:latest
+            ${{ vars.DOCKERHUB_USERNAME }}/flask-app:${{ github.sha }}
+            ${{ vars.DOCKERHUB_USERNAME }}/flask-app:latest
 
   deploy-dev-job:
     name: Deploy to Development
@@ -812,8 +871,8 @@ jobs:
         run: |
           docker run -d \
             -p 5000:5000 \
-            --name cwvj-flask-container \
-            ${{ vars.DOCKERHUB_USERNAME }}/cwvj-flask-app:${{ github.sha }}
+            --name flask-container \
+            ${{ vars.DOCKERHUB_USERNAME }}/flask-app:${{ github.sha }}
 
       - name: Smoke Test Application
         run: |
@@ -822,7 +881,7 @@ jobs:
           curl --fail http://127.0.0.1:5000/health
 
       - name: Display Container Logs
-        run: docker logs cwvj-flask-container
+        run: docker logs flask-container
 
   deploy-prod-job:
     name: Deploy to Production
@@ -851,8 +910,8 @@ jobs:
         run: |
           docker run -d \
             -p 5000:5000 \
-            --name cwvj-flask-container \
-            ${{ vars.DOCKERHUB_USERNAME }}/cwvj-flask-app:${{ github.sha }}
+            --name flask-container \
+            ${{ vars.DOCKERHUB_USERNAME }}/flask-app:${{ github.sha }}
 
       - name: Smoke Test Application
         run: |
@@ -861,7 +920,7 @@ jobs:
           curl --fail http://127.0.0.1:5000/health
 
       - name: Display Container Logs
-        run: docker logs cwvj-flask-container
+        run: docker logs flask-container
 ```
 
 ---
@@ -992,8 +1051,8 @@ Since the same DockerHub credentials are required irrespective of the deployment
 
 ```yaml
 tags:
-  - ${{ vars.DOCKERHUB_USERNAME }}/cwvj-flask-app:${{ github.sha }}
-  - ${{ vars.DOCKERHUB_USERNAME }}/cwvj-flask-app:latest
+  - ${{ vars.DOCKERHUB_USERNAME }}/flask-app:${{ github.sha }}
+  - ${{ vars.DOCKERHUB_USERNAME }}/flask-app:latest
 ```
 
 * This step builds the Docker image and pushes it to DockerHub.
@@ -1080,7 +1139,7 @@ Unlike the **Build Job**, which is environment-agnostic, these deployment jobs a
 Conceptually:
 
 ```text
-Deploy Job → Locate Environment → Load Environment Configuration → Evaluate Protection Rules → Start Deployment
+Deploy Job → Locate Environment → Evaluate Protection Rules → Load Environment Configuration → Start Deployment
 ```
 
 By associating a job with an Environment, GitHub can automatically:
@@ -1119,16 +1178,16 @@ Earlier in this demo, we configured the following Environment Variables:
 
 | Environment | APP_URL           | DEBUG_MODE |
 | ----------- | ----------------- | ---------- |
-| **dev**     | `app.dev.cwvj.io` | `true`     |
-| **prod**    | `app.cwvj.io`     | `false`    |
+| **dev**     | `dev.example.com` | `true`     |
+| **prod**    | `prod.example.com`     | `false`    |
 
 GitHub automatically injects the appropriate values based on the Environment associated with the deployment job.
 
 Conceptually:
 
 ```text
-Deploy to Development → APP_URL = app.dev.cwvj.io, DEBUG_MODE = true
-Deploy to Production → APP_URL = app.cwvj.io, DEBUG_MODE = false
+Deploy to Development → APP_URL = dev.example.com, DEBUG_MODE = true
+Deploy to Production → APP_URL = prod.example.com, DEBUG_MODE = false
 ```
 
 Notice that the workflow contains **no environment-specific conditional logic** to determine which values should be used. The deployment steps remain identical for both environments, while GitHub automatically injects the appropriate **Variables** before the job begins execution.
@@ -1187,8 +1246,8 @@ When the same Variable or Secret exists at multiple scopes, GitHub automatically
   run: |
     docker run -d \
       -p 5000:5000 \
-      --name cwvj-flask-container \
-      ${{ vars.DOCKERHUB_USERNAME }}/cwvj-flask-app:${{ github.sha }}
+      --name flask-container \
+      ${{ vars.DOCKERHUB_USERNAME }}/flask-app:${{ github.sha }}
 ```
 
 This step starts the Flask application inside a Docker container using the **Docker image published by the Build Job**. Since the image is hosted in a **private Docker Hub repository**, Docker automatically pulls it from Docker Hub before starting the container if it is not already present on the runner.
@@ -1212,7 +1271,7 @@ We previously discussed the significance of the **`--fail`** flag. If either end
 ---
 
 ```yaml
-docker logs cwvj-flask-container
+docker logs flask-container
 ```
 
 Finally, we display the application logs generated by the running container.
@@ -1245,7 +1304,7 @@ git add .
 git commit -m "feat: add github actions environments demo"
 
 # Associate the local repository with the remote GitHub repository (one-time setup)
-git remote add origin git@github.com:CloudWithVarJosh/cwvj-gha-practice.git
+git remote add origin git@github.com:prankbox/gha-practice.git
 
 # Push the main branch and configure it to track the remote branch
 git push -u origin main
@@ -1284,6 +1343,25 @@ You should now see a new workflow run in progress.
 ---
 
 ### Step 7: Running the Workflow
+
+Because this workflow is triggered by pushes, locate both branch runs from the CLI:
+
+```bash
+gh run list --workflow 01-environments-demo.yaml --branch main --limit 5
+gh run list --workflow 01-environments-demo.yaml --branch develop --limit 5
+gh run view RUN_ID --verbose
+gh run view RUN_ID --log-failed
+```
+
+Create and inspect environments without opening repository settings:
+
+```bash
+gh api --method PUT repos/{owner}/{repo}/environments/dev
+gh api --method PUT repos/{owner}/{repo}/environments/prod
+gh api repos/{owner}/{repo}/environments --jq '.environments[] | [.id, .name] | @tsv'
+```
+
+Use `gh variable set NAME --env dev --body VALUE` and `gh secret set NAME --env dev` for environment-scoped configuration. See the [GitHub CLI guide](../GITHUB-CLI.md) for pending-deployment approval commands.
 
 After executing the Git commands from the previous step, GitHub automatically triggers **two workflow runs**.
 
@@ -1395,7 +1473,7 @@ Before executing any deployment steps, GitHub associates the job with the corres
 Conceptually:
 
 ```text
-Deploy Job → Locate GitHub Actions Environment → Load Environment Variables → Evaluate Protection Rules → Start Deployment
+Deploy Job → Locate GitHub Actions Environment → Evaluate Protection Rules → Load Environment Variables and Secrets → Start Deployment
 ```
 
 Now inspect the **Display Environment Configuration** step in both workflow runs.
@@ -1404,7 +1482,7 @@ For the **develop** branch, the output should resemble:
 
 ```text
 Branch          : develop
-Application URL : app.dev.cwvj.io
+Application URL : dev.example.com
 Debug Mode      : true
 ```
 
@@ -1412,7 +1490,7 @@ For the **main** branch, the output changes to:
 
 ```text
 Branch          : main
-Application URL : app.cwvj.io
+Application URL : prod.example.com
 Debug Mode      : false
 ```
 
@@ -1429,7 +1507,7 @@ Finally, inspect the **Container Logs** step.
 You should observe output similar to:
 
 ```text
-Cloud With VarJosh Flask Application Started
+Flask Application Started
 Home endpoint invoked
 Health endpoint invoked
 ```
@@ -1589,7 +1667,7 @@ Now let's configure two additional deployment governance capabilities for the **
 Configure the following settings:
 
 ```text
-prod → Required Reviewers → CloudWithVarJosh
+prod → Required Reviewers → YOUR_REVIEWER_USERNAME
 prod → Wait Timer → 1 Minute
 ```
 
@@ -1603,12 +1681,14 @@ Build Job → Deploy to Production → Waiting for Approval → Reviewer Approve
 
 This ensures that sensitive environments such as **Production** cannot be deployed automatically without human oversight. In many organizations, Production deployments require approval from **Technical Leads**, **Release Managers**, **Platform Teams**, or members of the **Change Advisory Board (CAB)** before deployment is permitted.
 
-Next, configure a **Wait Timer** of **1 minute**. Once the deployment receives approval, GitHub waits for the configured duration before allowing the deployment to proceed.
+Next, configure a **Wait Timer** of **1 minute**. GitHub starts this timer when the deployment job is initially triggered. Required-reviewer approval and the wait timer are separate protection rules; the job can start only after approval has been granted and the configured time has elapsed.
 
 Conceptually:
 
 ```text
-Approval Received → Wait 1 Minute → Start Deployment
+Job Triggered → Wait Timer Starts ───────────┐
+                                             ├→ All Rules Pass → Start Deployment
+Job Triggered → Wait for Reviewer Approval ──┘
 ```
 
 Although our demo uses a **1-minute** wait timer, production environments often configure significantly longer delays for several operational reasons:
@@ -1649,7 +1729,7 @@ This time, however, the deployment behaves differently because of the additional
 Conceptually:
 
 ```text
-Push to main → Build & Publish Image → Deploy to Production → Required Reviewer Approval → Wait Timer → Load Environment Configuration → Execute Deployment → Record Deployment History
+Push to main → Build & Publish Image → Deploy to Production → Evaluate Approval and Wait Timer → Load Environment Configuration → Execute Deployment → Record Deployment History
 ```
 
 When the deployment reaches the **Deploy to Production** job, GitHub pauses the workflow and displays a pending deployment request.
@@ -1660,7 +1740,25 @@ Open the pending deployment, optionally provide a review comment, and click:
 Approve and Deploy
 ```
 
-After the deployment is approved, GitHub automatically waits for the configured **Wait Timer** before resuming the deployment.
+An authorized reviewer can perform the equivalent operation from the terminal. First retrieve the environment ID, verify the pending deployment, and then approve it:
+
+```bash
+gh api repos/{owner}/{repo}/environments/prod --jq '[.id, .name] | @tsv'
+gh api repos/{owner}/{repo}/actions/runs/RUN_ID/pending_deployments
+
+gh api \
+  --method POST \
+  repos/{owner}/{repo}/actions/runs/RUN_ID/pending_deployments \
+  -F 'environment_ids[]=ENVIRONMENT_ID' \
+  -f state=approved \
+  -f comment='Approved after deployment review'
+
+gh run watch RUN_ID --exit-status
+```
+
+Approval changes external deployment state. Confirm the run, commit, environment, and target before executing the POST request.
+
+After approval, the job resumes as soon as the independently running **Wait Timer** has also elapsed. If the timer already elapsed while approval was pending, no additional one-minute delay is added after approval.
 
 Once the deployment completes successfully, navigate to the **Deployments** section of the repository (or the **prod** Environment) to view the recorded deployment.
 

@@ -3,14 +3,14 @@ import os
 
 app = Flask(__name__)
 
-print("Cloud With VarJosh Flask Application Started")
+print("Flask Application Started")
 
 @app.get("/")
 def home():
     print("Home endpoint invoked")
 
     return jsonify(
-        message="Welcome to Cloud With VarJosh",
+        message="Welcome to the GitHub Actions Demo",
         platform="GitHub Actions",
         runtime="Docker + Flask"
     )

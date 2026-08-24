@@ -84,7 +84,7 @@ For example, GitHub provides several commonly used Actions:
 - uses: actions/checkout@v7
 - uses: actions/upload-artifact@v7
 - uses: actions/download-artifact@v8
-- uses: actions/cache@v6
+- uses: actions/cache@v5
 ```
 
 These Actions simplify common workflow tasks such as **checking out source code**, **sharing artifacts between jobs**, and **caching dependencies** to improve workflow performance.
@@ -452,11 +452,11 @@ Before starting this demo, ensure that you already:
 These concepts were covered extensively in **Lecture 01**.
 
 * [Lecture 01 Video](https://youtu.be/w4c_NIjO3XI)
-* [Lecture 01 GitHub Notes](https://github.com/CloudWithVarJosh/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions)
+* [Lecture 01 GitHub Notes](https://github.com/prankbox/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions)
 
 For this lecture, we will use the following repository:
 
-* **Repository Name:** `cwvj-gha-practice`
+* **Repository Name:** `gha-practice`
 * **Visibility:** Private
 
 > **Operational Note:** GitHub Actions workflows execute directly inside repositories. Whenever workflow YAML files are pushed into the repository, GitHub automatically discovers them and evaluates whether they should execute based on their configured workflow triggers.
@@ -501,7 +501,7 @@ import os
 
 app = Flask(__name__)
 
-print("Cloud With VarJosh Flask Application Started")
+print("Flask Application Started")
 
 
 @app.get("/")
@@ -509,7 +509,7 @@ def home():
     print("Home endpoint invoked")
 
     return jsonify(
-        message="Welcome to Cloud With VarJosh",
+        message="Welcome to the GitHub Actions Demo",
         platform="GitHub Actions",
         runtime="Docker + Flask"
     )
@@ -566,7 +566,7 @@ Create the following dependency file.
 **`requirements.txt`**
 
 ```text
-flask==3.1.1
+flask==3.1.3
 ```
 
 > **Note:** This is the same dependency file used throughout the course. Simply reuse the existing `requirements.txt` if you have already created it.
@@ -659,9 +659,22 @@ Before the workflow can authenticate with Docker Hub and publish Docker images, 
 
 | Name | Type | Value to Configure |
 |------|------|--------------------|
-| `DOCKERHUB_USERNAME` | Repository Variable | Your Docker Hub username (e.g., `cloudwithvarjosh`). |
-| `DOCKER_IMAGE_NAME` | Repository Variable | The Docker image repository name in the format `<username>/<repository>` (e.g., `cloudwithvarjosh/python-demo`). |
+| `DOCKERHUB_USERNAME` | Repository Variable | Your Docker Hub username (`prankbox`). |
+| `DOCKER_IMAGE_NAME` | Repository Variable | The Docker image repository name in the format `<username>/<repository>` (e.g., `prankbox/python-demo`). |
 | `DOCKERHUB_TOKEN` | Repository Secret | Your Docker Hub Personal Access Token (PAT). |
+
+Configure these values with GitHub CLI:
+
+```bash
+gh variable set DOCKERHUB_USERNAME --body prankbox
+gh variable set DOCKER_IMAGE_NAME --body prankbox/python-demo
+gh secret set DOCKERHUB_TOKEN
+
+gh variable list
+gh secret list
+```
+
+Paste the token only at the interactive secret prompt.
 
 > **Note:** We covered **Repository Variables** and **Repository Secrets** in detail in the previous lectures. In this demo, we are simply reusing those concepts to configure our Composite Action.
 
@@ -858,14 +871,14 @@ Earlier in this lecture, we learned that GitHub supports three execution mechani
 
 ```text
 Composite Action  → using: composite
-JavaScript Action → using: node20
+JavaScript Action → using: node24
 Docker Action     → using: docker
 ```
 
 The value specified in **`using`** tells GitHub **which execution engine to use**:
 
 - **`using: composite`** executes the steps defined under the **`steps`** section.
-- **`using: node20`** loads a Node.js runtime and executes the JavaScript entry point specified by the Action.
+- **`using: node24`** loads a Node.js runtime and executes the JavaScript entry point specified by the Action.
 - **`using: docker`** builds or pulls a Docker image and executes the Action inside a Docker container.
 
 Although all three Action types are invoked using the **`uses`** keyword, GitHub executes them differently based on the value of **`using`**.
@@ -970,7 +983,7 @@ docker/build-push-action@v7
 * Notice that only the **image name** and **image tag** are configurable through **Action Inputs**, allowing the calling workflow to determine which image should be built and how it should be tagged.
 
 ```text
-Image Name + Image Tag → cloudwithvarjosh/python-demo:15
+Image Name + Image Tag → prankbox/python-demo:15
 ```
 
 where:
@@ -1004,6 +1017,9 @@ name: Docker Build & Push (Composite Action)
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   docker-build-push-job:
     name: Docker Build & Push (Composite Action)
@@ -1019,7 +1035,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Build & Push Docker Image
-        uses: ./.github/actions/docker-build-push
+        uses: $/.github/actions/docker-build-push
         with:
           dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -1117,7 +1133,7 @@ Later, these values are passed to the Composite Action using the **`with`** bloc
 
 ```yaml
 - name: Build & Push Docker Image
-  uses: ./.github/actions/docker-build-push
+  uses: $/.github/actions/docker-build-push
 ```
 
 * This is the **most important configuration** in the calling workflow, as it instructs GitHub which **GitHub Custom Action** should be executed.
@@ -1127,16 +1143,16 @@ Later, these values are passed to the Composite Action using the **`with`** bloc
 * The path:
 
 ```yaml
-./.github/actions/docker-build-push
+$/.github/actions/docker-build-push
 ```
 
 begins with:
 
 ```text
-./
+$/
 ```
 
-which instructs GitHub to locate the Action **relative to the repository root**, rather than downloading it from another repository.
+which instructs GitHub to load the Action from the **same repository and commit as the running workflow**, rather than downloading it from another repository. This same-repository syntax became available in 2026 and does not require `actions/checkout` merely to locate the Action.
 
 Conceptually:
 
@@ -1152,22 +1168,22 @@ Repository
 
 * GitHub automatically locates the **`action.yml`** file within the specified directory and executes the Composite Action.
 
-* Actions referenced using a relative path are known as **Local Actions**, because both the workflow and the Action reside in the same repository.
+* Actions referenced with `$/` are **Local Actions**, because both the workflow and the Action reside in the same repository. The older `./.github/actions/...` form executes from the runner workspace and requires the repository to be checked out first; reserve it for edge cases where earlier steps intentionally modify the Action files.
 
 * Earlier, we learned that **Remote Actions** are maintained in dedicated repositories and consumed by one or more repositories.
 
-* For example, if the Action were hosted in a repository named **`remote-action-repo`** owned by the GitHub user **`cloudwithvarjosh`**, the calling workflow would reference it as:
+* For example, if the Action were hosted in a repository named **`remote-action-repo`** owned by the GitHub user **`prankbox`**, the calling workflow would reference it as:
 
 ```yaml
 - name: Build & Push Docker Image
-  uses: cloudwithvarjosh/remote-action-repo@v1
+  uses: prankbox/remote-action-repo@v1
 ```
 
-* Similarly, if the Action were maintained in a repository owned by a GitHub Organization named **`cwvj-org`**, the reference would become:
+* Similarly, if the Action were maintained in a repository owned by a GitHub Organization named **`YOUR_GITHUB_ORG`**, the reference would become:
 
 ```yaml
 - name: Build & Push Docker Image
-  uses: cwvj-org/remote-action-repo@v1
+  uses: YOUR_GITHUB_ORG/remote-action-repo@v1
 ```
 
 * Unlike a **Local Action**, where we provide a **relative directory path**, a **Remote Action** is referenced using the format:
@@ -1297,7 +1313,7 @@ Once all the files have been created, commit and push them to your GitHub reposi
 git init
 
 # Associate the local repository with the remote GitHub repository (one-time setup)
-git remote add origin git@github.com:CloudWithVarJosh/cwvj-gha-practice.git
+git remote add origin git@github.com:prankbox/gha-practice.git
 
 # Stage all new and modified files for the next commit
 git add .
@@ -1323,6 +1339,13 @@ pushing the code **does not automatically execute the workflow**. Instead, GitHu
 ---
 
 ### Step 7: Running the Workflow
+
+```bash
+gh workflow run "Docker Build & Push (Composite Action)" --ref main
+gh run list --workflow "Docker Build & Push (Composite Action)" --limit 5
+gh run watch RUN_ID --exit-status
+gh run view RUN_ID --verbose
+```
 
 Navigate to:
 
@@ -1474,24 +1497,33 @@ runs:
   steps:
     - name: Generate Build Information
       shell: bash
+      env:
+        APPLICATION_NAME: ${{ inputs.application-name }}
+        DEPLOYMENT_ENVIRONMENT: ${{ inputs.environment }}
+        REPOSITORY: ${{ github.repository }}
+        BRANCH: ${{ github.ref_name }}
+        COMMIT_SHA: ${{ github.sha }}
+        RUN_NUMBER: ${{ github.run_number }}
+        WORKFLOW_NAME: ${{ github.workflow }}
+        TRIGGERING_ACTOR: ${{ github.actor }}
       run: |
-        set -e
+        set -euo pipefail
 
         mkdir -p output
 
         BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-        cat <<EOF > output/build-info.txt
-        Application : ${{ inputs.application-name }}
-        Environment : ${{ inputs.environment }}
-        Repository  : ${{ github.repository }}
-        Branch      : ${{ github.ref_name }}
-        Commit SHA  : ${{ github.sha }}
-        Run Number  : ${{ github.run_number }}
-        Workflow    : ${{ github.workflow }}
-        Triggered By: ${{ github.actor }}
-        Build Time  : ${BUILD_TIME}
-        EOF
+        printf '%s\n' \
+          "Application : ${APPLICATION_NAME}" \
+          "Environment : ${DEPLOYMENT_ENVIRONMENT}" \
+          "Repository  : ${REPOSITORY}" \
+          "Branch      : ${BRANCH}" \
+          "Commit SHA  : ${COMMIT_SHA}" \
+          "Run Number  : ${RUN_NUMBER}" \
+          "Workflow    : ${WORKFLOW_NAME}" \
+          "Triggered By: ${TRIGGERING_ACTOR}" \
+          "Build Time  : ${BUILD_TIME}" \
+          > output/build-info.txt
 
         echo "======================================"
         echo "Build Information"
@@ -1586,7 +1618,7 @@ ${{ steps.build-info.outputs.build-info-path }}
 For example:
 
 ```bash
-cat ${{ steps.build-info.outputs.build-info-path }}
+cat "${{ steps.build-info.outputs.build-info-path }}"
 ```
 
 * In our demo, rather than simply reading the file, we will use this output in a later step of the calling workflow to upload **`build-info.txt`** as a **GitHub Actions Artifact** using **`actions/upload-artifact`**. This preserves the file beyond the workflow execution and makes it available for download from the **Artifacts** section of the workflow run.
@@ -1636,14 +1668,14 @@ steps:
 ---
 
 ```bash
-set -e
+set -euo pipefail
 ```
 
-* This command instructs Bash to **immediately terminate execution** if any command returns a non-zero exit code.
+* These options stop on command failures (`-e`), reject unset variables (`-u`), and propagate failures from pipelines (`-o pipefail`).
 
 * Without this setting, the script could continue executing even after encountering an error, potentially producing incomplete or incorrect results.
 
-* Using **set -e** is considered a **best practice** when writing shell scripts for CI/CD pipelines.
+* These options make failures more predictable in CI/CD scripts.
 
 ---
 
@@ -1675,19 +1707,19 @@ BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 ---
 
-```bash
-cat <<EOF > output/build-info.txt
-...
-EOF
+The step first maps Action Inputs and GitHub Context properties into environment variables, then writes them with `printf`. This is a security boundary: values such as inputs and branch names can contain attacker-controlled characters and must not be inserted directly into an inline shell script. Environment-variable expansion treats their contents as data rather than executable shell syntax.
+
+```yaml
+env:
+  APPLICATION_NAME: ${{ inputs.application-name }}
+  BRANCH: ${{ github.ref_name }}
 ```
 
-* This block uses a **Here Document (Heredoc)** to create the **build-info.txt** file.
+```bash
+printf '%s\n' "Application : ${APPLICATION_NAME}" "Branch : ${BRANCH}"
+```
 
-* Instead of writing multiple **echo** statements, a Here Document allows us to write an entire file in a clean and readable format.
-
-* The generated file contains both **user-provided inputs** and **GitHub Context variables**, making it a useful build manifest.
-
-* The values enclosed within **`${{ }}`** are evaluated by **GitHub Actions** before the script executes.
+> **Security Insight:** Treat Action Inputs and potentially attacker-controlled GitHub Context properties as untrusted input. Pass them through `env`, quote shell variables, and validate values before using them in commands, file paths, or API requests.
 
 * The value enclosed within **`${BUILD_TIME}`** is expanded by the **Bash shell** because it is a shell variable created during script execution.
 
@@ -1745,22 +1777,22 @@ name: Build Information Demo
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-information:
 
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v7
-
       - name: Generate Build Information
         id: build-info
 
-        uses: ./.github/actions/generate-build-info
+        uses: $/.github/actions/generate-build-info
 
         with:
-          application-name: Cloud With VarJosh
+          application-name: GitHub Actions Demo
           environment: Development
 
       - name: Upload Build Information
@@ -1806,11 +1838,7 @@ This block defines the single job executed by the workflow.
 Its responsibility is to:
 
 ```text
-Checkout Repository
-        ↓
 Execute Composite Action
-        ↓
-Display Output Variable
         ↓
 Upload Build Information
 ```
@@ -1833,26 +1861,7 @@ runs-on: ubuntu-latest
 
 ---
 
-```yaml
-- name: Checkout Repository
-  uses: actions/checkout@v7
-```
-
-* This step checks out the repository onto the GitHub-hosted runner.
-
-* At first glance, it might appear unnecessary because this workflow is not building an application or compiling source code.
-
-* However, our Composite Action is stored **inside this repository**.
-
-```text
-.github/actions/generate-build-info
-```
-
-* When the workflow references the Composite Action using a **relative path**, GitHub must first download the repository contents onto the runner.
-
-* Without checking out the repository, GitHub would not be able to locate the local Composite Action, causing the workflow to fail.
-
-* This is an important concept to remember. **actions/checkout** is not only required for application source code, it is also required whenever a workflow references a **local Action** stored inside the repository.
+> **Current same-repository behavior:** The `$/` reference below resolves the Action from the same repository and commit as the running workflow. No checkout step is needed because this job does not otherwise use repository files. Use `./.github/actions/...` only when you deliberately need the runner-workspace copy, and run `actions/checkout` first in that case.
 
 ---
 
@@ -1860,19 +1869,19 @@ runs-on: ubuntu-latest
 - name: Generate Build Information
   id: build-info
 
-  uses: ./.github/actions/generate-build-info
+  uses: $/.github/actions/generate-build-info
 
   with:
-    application-name: Cloud With VarJosh
+    application-name: GitHub Actions Demo
     environment: Development
 ```
 
 * This step executes the **Composite Action** we created in the previous step.
 
-* Notice that the Action is referenced using a **relative path**.
+* Notice that the Action is referenced using the **same-repository syntax**.
 
 ```yaml
-uses: ./.github/actions/generate-build-info
+uses: $/.github/actions/generate-build-info
 ```
 
 * This tells GitHub to execute the Composite Action located inside the current repository instead of downloading an Action from GitHub Marketplace.
@@ -1889,7 +1898,7 @@ id: build-info
 
 ```yaml
 with:
-  application-name: Cloud With VarJosh
+  application-name: GitHub Actions Demo
   environment: Development
 ```
 
@@ -1952,6 +1961,21 @@ After the changes have been pushed successfully, GitHub automatically updates th
 
 ### Step 4: Execute the Workflow
 
+```bash
+gh workflow run "Build Information Demo" --ref main
+gh run list --workflow "Build Information Demo" --limit 5
+gh run watch RUN_ID --exit-status
+gh run view RUN_ID --log
+```
+
+Download the generated artifact after the run completes:
+
+```bash
+gh run download RUN_ID \
+  --name build-information \
+  --dir downloaded-artifacts
+```
+
 Navigate to your GitHub repository and open the **Actions** tab.
 
 From the list of available workflows, select **Build Information Demo**.
@@ -1969,11 +1993,7 @@ Since this workflow uses the **workflow_dispatch** trigger, it will only execute
 Once the workflow starts, the execution flow should resemble the following.
 
 ```text
-Checkout Repository
-        ↓
 Generate Build Information
-        ↓
-Display Output Variable
         ↓
 Upload Build Information
 ```
@@ -1988,14 +2008,14 @@ You should see output similar to the following.
 ======================================
 Build Information
 ======================================
-Application : Cloud With VarJosh
+Application : GitHub Actions Demo
 Environment : Development
-Repository  : CloudWithVarJosh/gha-practice-demo
+Repository  : prankbox/gha-practice
 Branch      : main
 Commit SHA  : 4dbbbfe44d5e2a4d...
 Run Number  : 8
 Workflow    : Build Information Demo
-Triggered By: CloudWithVarJosh
+Triggered By: prankbox
 Build Time  : 2026-07-21T01:28:52Z
 ```
 
@@ -2037,14 +2057,14 @@ Inside the downloaded archive, you will find the generated **build-info.txt** fi
 Its contents should resemble the following.
 
 ```text
-Application : Cloud With VarJosh
+Application : GitHub Actions Demo
 Environment : Development
-Repository  : CloudWithVarJosh/gha-practice-demo
+Repository  : prankbox/gha-practice
 Branch      : main
 Commit SHA  : 4dbbbfe44d5e2a4d...
 Run Number  : 8
 Workflow    : Build Information Demo
-Triggered By: CloudWithVarJosh
+Triggered By: prankbox
 Build Time  : 2026-07-21T01:28:52Z
 ```
 

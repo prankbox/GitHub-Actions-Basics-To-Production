@@ -526,7 +526,7 @@ The three primary constructs are:
 3. **Steps**
    Steps are the individual execution tasks inside jobs such as running shell commands, checking out source code, building applications, or invoking reusable actions.
 
-A repository can contain multiple workflows, each workflow can contain multiple jobs, and each job can contain multiple sequentially executed steps.
+A repository can contain multiple workflows, each workflow can contain multiple jobs, and each job can contain multiple steps. Steps execute sequentially by default, with explicit background and parallel execution available for independent work.
 
 ---
 
@@ -568,6 +568,16 @@ Common workflow **triggers** include:
 * `push` triggers workflows when commits are pushed to branches.
 * `pull_request` triggers validation workflows during PR creation or updates.
 * `workflow_dispatch` allows manually triggering workflows from the GitHub UI.
+
+The same workflow can be triggered from the terminal after authenticating with GitHub CLI:
+
+```bash
+gh auth status
+gh workflow list
+gh workflow run WORKFLOW_FILE.yaml --ref main
+```
+
+Use `gh run list`, `gh run watch RUN_ID --exit-status`, and `gh run view RUN_ID --log-failed` to observe execution without opening the Actions tab. See the course-wide [GitHub CLI guide](../GITHUB-CLI.md) for the complete workflow.
 * `schedule` executes workflows using cron-based scheduling.
 * `release` triggers workflows during GitHub release creation or publication.
 * `issues` and `issue_comment` trigger repository management or automation workflows.
@@ -599,7 +609,7 @@ Typical examples include:
 * Artifact publishing
 * Deployment execution
 
-Each job executes on a **runner** and contains one or more **sequentially executed steps**.
+Each job executes on a **runner** and contains one or more steps that execute sequentially by default.
 
 Jobs define important execution properties such as:
 
@@ -625,9 +635,35 @@ runs-on: ubuntu-latest
 By default:
 
 * **Jobs execute in parallel**
-* **Steps execute sequentially**
+* **Steps execute sequentially unless background or parallel execution is explicitly configured**
 
 This behavior is extremely important for understanding **workflow execution performance**, **pipeline optimization**, and **dependency management**.
+
+GitHub Actions also supports concurrent steps within a job. The `background`, `wait`, `wait-all`, `cancel`, and `parallel` keywords can start independent steps concurrently and synchronize them later. For example:
+
+```yaml
+steps:
+  - name: Start application
+    id: application
+    background: true
+    run: python app.py
+
+  - name: Prepare test data
+    run: ./prepare-test-data.sh
+
+  - name: Run smoke test
+    run: |
+      for attempt in {1..10}; do
+        curl --fail http://localhost:5000/health && exit 0
+        sleep 2
+      done
+      exit 1
+
+  - name: Stop application
+    cancel: application
+```
+
+> **Important:** Sequential execution remains the default and is normally correct when a step consumes files, environment variables, or outputs produced by an earlier step. Use background or parallel steps only when dependencies and cleanup are explicit.
 
 Example scenarios:
 
@@ -667,7 +703,7 @@ Common examples include:
 * Publishing artifacts
 * Deploying applications
 
-Steps execute **sequentially within a job** and share the same runner environment during execution.
+Steps share the same runner environment and execute **sequentially by default**. Explicit background or parallel steps may overlap, so dependent work must use `wait` or `wait-all` before consuming their results.
 
 > Important workflow execution behavior:
 >
@@ -713,7 +749,7 @@ Example:
 
 ```yaml id="s1d9kl"
 - name: Checkout source code
-  uses: actions/checkout@v4
+  uses: actions/checkout@v7
 ```
 
 Reusable actions are commonly consumed from:
@@ -929,7 +965,7 @@ Since most enterprise applications use **private repositories**, we will use a p
 
 Create a new repository with the following details:
 
-* Repository name: `cwvj-gha-practice`
+* Repository name: `gha-practice`
 * Visibility: **Private**
 
 Using a private repository also helps us understand GitHub Actions behavior in environments closer to real organizational workflows.
@@ -941,6 +977,16 @@ At this point, do not initialize the repository with:
 * License
 
 We will create and push everything from the local system manually.
+
+Create the empty private repository from the terminal:
+
+```bash
+gh auth status
+gh repo create gha-practice --private
+gh repo view prankbox/gha-practice --json sshUrl --jq '.sshUrl'
+```
+
+The first command confirms which GitHub account will own the repository. The repository command does not add a README, `.gitignore`, or license unless those flags are explicitly requested.
 
 ---
 
@@ -959,7 +1005,7 @@ we will use **SSH authentication**, which is one of the most common approaches i
 Generate a new SSH key pair:
 
 ```bash
-ssh-keygen -t ed25519 -C "cloudwithvarjosh@gmail.com" -f ~/.ssh/cwvj_gha_ed25519
+ssh-keygen -t ed25519 -C "YOUR_GITHUB_EMAIL" -f ~/.ssh/gha_practice_ed25519
 ```
 ---
 
@@ -992,7 +1038,7 @@ The SSH agent manages SSH keys loaded into memory during the current session.
 eval "$(ssh-agent -s)"
 
 # Add the private key to the SSH agent
-ssh-add ~/.ssh/cwvj_gha_ed25519
+ssh-add ~/.ssh/gha_practice_ed25519
 
 # Verify loaded SSH keys
 ssh-add -l
@@ -1005,7 +1051,7 @@ If successful, `ssh-add -l` displays the fingerprint of the loaded SSH key.
 Now display the public key:
 
 ```bash id="v9v4y3"
-cat ~/.ssh/cwvj_gha_ed25519.pub
+cat ~/.ssh/gha_practice_ed25519.pub
 ```
 
 Copy the displayed public key and navigate inside GitHub:
@@ -1016,8 +1062,14 @@ Profile Picture → Settings → SSH and GPG Keys → New SSH Key
 
 Provide:
 
-* **Title:** `cwvj-gha-practice`
+* **Title:** `gha-practice`
 * **Key:** Paste the copied public key
+
+Or upload the public key from the terminal:
+
+```bash
+gh ssh-key add ~/.ssh/gha_practice_ed25519.pub --title gha-practice
+```
 
 Once the key is added, GitHub can recognize and trust your local machine for SSH-based Git operations.
 
@@ -1030,7 +1082,13 @@ Repository → Code → SSH
 Example:
 
 ```bash id="7f8mqa"
-git@github.com:CloudWithVarJosh/cwvj-gha-practice.git
+git@github.com:prankbox/gha-practice.git
+```
+
+Retrieve the same URL with:
+
+```bash
+gh repo view prankbox/gha-practice --json sshUrl --jq '.sshUrl'
 ```
 
 This SSH URL will be used for authenticated Git operations.
@@ -1091,14 +1149,14 @@ This workflow demonstrates several important GitHub Actions concepts:
 * `on: push` triggers the workflow whenever code is pushed to the repository.
 * `jobs` defines multiple execution units inside the workflow.
 * `runs-on` specifies the runner operating system used for job execution.
-* `steps` contains sequentially executed operations inside each job.
+* `steps` contains operations that execute sequentially by default inside each job.
 * `run` executes shell commands directly on the runner.
 
 Important execution behavior:
 
 * `job-1` and `job-2` execute on separate **runner environments**.
 * Jobs execute in **parallel by default**.
-* Steps inside a job execute sequentially in the order they are defined.
+* Steps inside a job execute sequentially in the order they are defined unless concurrency is explicitly configured.
 
 
 ---
@@ -1121,7 +1179,7 @@ git commit -m "ci: add initial GitHub Actions workflow"
 git branch -M main
 
 # Configure GitHub repository as remote origin
-git remote add origin git@github.com:CloudWithVarJosh/cwvj-gha-practice.git
+git remote add origin git@github.com:prankbox/gha-practice.git
 
 # Push code to GitHub
 git push -u origin main
@@ -1306,6 +1364,3 @@ At this stage, you should now clearly understand how **GitHub Actions workflows*
 
 - **DevSecOps & SonarQube Tutorial**  
   https://youtu.be/qyYsLVZDieU
-
-
-

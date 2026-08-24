@@ -254,11 +254,11 @@ Before starting this demo, ensure that you already:
 These concepts were covered extensively in **Lecture 01**.
 
 * [Lecture 01 Video](https://youtu.be/w4c_NIjO3XI)
-* [Lecture 01 GitHub Notes](https://github.com/CloudWithVarJosh/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions)
+* [Lecture 01 GitHub Notes](https://github.com/prankbox/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions)
 
 For this lecture, we will use the following repository:
 
-* **Repository Name:** `cwvj-gha-practice`
+* **Repository Name:** `gha-practice`
 * **Visibility:** Private
 
 > **Operational Note:** GitHub Actions workflows execute directly inside repositories. Whenever workflow YAML files are pushed into the repository, GitHub automatically discovers them and evaluates whether they should execute based on their configured workflow triggers.
@@ -317,14 +317,14 @@ import os
 
 app = Flask(__name__)
 
-print("Cloud With VarJosh Flask Application Started")
+print("Flask Application Started")
 
 @app.get("/")
 def home():
     print("Home endpoint invoked")
 
     return jsonify(
-        message="Welcome to Cloud With VarJosh",
+        message="Welcome to the GitHub Actions Demo",
         platform="GitHub Actions",
         runtime="Docker + Flask"
     )
@@ -354,7 +354,7 @@ This application:
 The application also generates simple runtime logs:
 
 ```text
-Cloud With VarJosh Flask Application Started
+Flask Application Started
 Home endpoint invoked
 Health endpoint invoked
 ```
@@ -380,7 +380,7 @@ to validate successful application startup.
 
 * `app = Flask(__name__)` creates the Flask application object which acts as the main web application instance.
 
-* `print("Cloud With VarJosh Flask Application Started")` generates a startup log message when the application launches.
+* `print("Flask Application Started")` generates a startup log message when the application launches.
 
 * `@app.get("/")` defines an HTTP GET endpoint for the root path `/`.
 
@@ -451,7 +451,7 @@ Create the following dependency file:
 **`requirements.txt`**
 
 ```text
-flask==3.1.1
+flask==3.1.3
 ```
 
 #### Understanding the Requirements File
@@ -468,7 +468,7 @@ In this demo, we are using **Flask**, which is a lightweight Python web framewor
 The line:
 
 ```text
-flask==3.1.1
+flask==3.1.3
 ```
 
 instructs Python to install:
@@ -494,47 +494,64 @@ name: 01 - Artifacts Demo
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   flask-ci-job:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Build Docker Image
         uses: docker/build-push-action@v7
         with:
           context: .
           push: false
-          tags: cwvj-flask-app:v1.0.1
+          tags: flask-app:v1.0.1
 
       - name: Run Container
         run: |
           docker run -d \
             -p 5000:5000 \
-            --name cwvj-flask-container \
-            cwvj-flask-app:v1.0.1
+            --name flask-container \
+            flask-app:v1.0.1
 
       - name: Generate Smoke Test Report
         run: |
-          sleep 5
-          curl http://localhost:5000 > smoke-test-report.txt
-          curl http://localhost:5000/health >> smoke-test-report.txt
+          for attempt in {1..10}; do
+            if curl --fail-with-body --silent --show-error http://localhost:5000/health; then
+              break
+            fi
+            if [ "$attempt" -eq 10 ]; then
+              echo "Application did not become healthy in time." >&2
+              exit 1
+            fi
+            sleep 2
+          done
+
+          curl --fail-with-body --silent --show-error http://localhost:5000 > smoke-test-report.txt
+          curl --fail-with-body --silent --show-error http://localhost:5000/health >> smoke-test-report.txt
 
       - name: Export Container Logs
+        if: ${{ !cancelled() }}
         run: |
-          docker logs cwvj-flask-container > container-logs.txt
+          docker logs flask-container > container-logs.txt
 
       - name: Upload Artifacts
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: flask-ci-artifacts
           path: |
             smoke-test-report.txt
             container-logs.txt
+          if-no-files-found: warn
 
   review-job:
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
 
     needs:
@@ -596,7 +613,7 @@ jobs:
 * This block defines the **`flask-ci-job`** job.
 * The job executes on a **GitHub-hosted Ubuntu runner**.
 * Its responsibility is to build and run the application, generate workflow-produced files, and upload those files as Artifacts.
-* All steps within the job execute sequentially because they belong to the same job.
+* These steps use GitHub Actions' default sequential execution behavior. Background and parallel steps are available for independent work but are not appropriate here because later steps consume state produced by earlier steps.
 
 > **Operational Note:** GitHub-hosted runners are **ephemeral**. When a job completes, the runner and all files stored on its filesystem are automatically destroyed.
 
@@ -604,7 +621,7 @@ jobs:
 
 ```yaml
 - name: Checkout Repository
-  uses: actions/checkout@v6
+  uses: actions/checkout@v7
 ```
 
 * This step downloads the repository contents onto the runner.
@@ -621,7 +638,7 @@ jobs:
   with:
     context: .
     push: false
-    tags: cwvj-flask-app:v1.0.1
+    tags: flask-app:v1.0.1
 ```
 
 * This step builds the Docker image for the Flask application.
@@ -631,7 +648,7 @@ jobs:
 * The resulting image is tagged as:
 
 ```text
-cwvj-flask-app:v1.0.1
+flask-app:v1.0.1
 ```
 
 * The image remains available locally on the runner and is used by subsequent workflow steps.
@@ -645,8 +662,8 @@ cwvj-flask-app:v1.0.1
   run: |
     docker run -d \
       -p 5000:5000 \
-      --name cwvj-flask-container \
-      cwvj-flask-app:v1.0.1
+      --name flask-container \
+      flask-app:v1.0.1
 ```
 
 * This step starts the Flask application inside a Docker container.
@@ -655,7 +672,7 @@ cwvj-flask-app:v1.0.1
 * The container is assigned the name:
 
 ```text
-cwvj-flask-container
+flask-container
 ```
 
 * Once started, the application becomes accessible through:
@@ -671,13 +688,23 @@ http://localhost:5000
 ```yaml
 - name: Generate Smoke Test Report
   run: |
-    sleep 5
-    curl http://localhost:5000 > smoke-test-report.txt
-    curl http://localhost:5000/health >> smoke-test-report.txt
+    for attempt in {1..10}; do
+      if curl --fail-with-body --silent --show-error http://localhost:5000/health; then
+        break
+      fi
+      if [ "$attempt" -eq 10 ]; then
+        echo "Application did not become healthy in time." >&2
+        exit 1
+      fi
+      sleep 2
+    done
+
+    curl --fail-with-body --silent --show-error http://localhost:5000 > smoke-test-report.txt
+    curl --fail-with-body --silent --show-error http://localhost:5000/health >> smoke-test-report.txt
 ```
 
 * This step performs simple validation against the running application.
-* The **`sleep 5`** command allows the application time to start before requests are sent.
+* The bounded retry loop waits for the health endpoint to become ready and fails clearly after ten attempts. This is more reliable than assuming a fixed startup delay.
 * The first **`curl`** command invokes the application endpoint and stores the response in:
 
 ```text
@@ -723,8 +750,9 @@ Unit → Integration → Smoke → Sanity → System → Regression → Acceptan
 
 ```yaml
 - name: Export Container Logs
+  if: ${{ !cancelled() }}
   run: |
-    docker logs cwvj-flask-container > container-logs.txt
+    docker logs flask-container > container-logs.txt
 ```
 
 * This step exports the application logs generated by the running container.
@@ -738,7 +766,7 @@ container-logs.txt
 The file may contain information such as:
 
 ```text
-Cloud With VarJosh Flask Application Started
+Flask Application Started
 Home endpoint invoked
 Health endpoint invoked
 ```
@@ -774,6 +802,8 @@ flask-ci-artifacts
 * The **`path`** parameter specifies the files or directories that should be uploaded.
 
 * Multiple files can be uploaded as part of the same Artifact.
+
+> **Current artifact behavior (GitHub.com, August 23, 2026):** `actions/upload-artifact@v7` creates immutable artifacts. You cannot append another upload to an existing artifact name in the same job, so matrix jobs should use unique names (for example, include `${{ matrix.os }}`). Hidden files are excluded unless `include-hidden-files: true` is set; review them carefully before enabling that option. `upload-artifact@v7` and `download-artifact@v8` use the Node.js 24 action runtime. GitHub Enterprise Server has a separate compatibility path, so check the action release notes before copying these GitHub.com versions to GHES.
 
 In this example, the following files are uploaded:
 
@@ -835,15 +865,16 @@ This configuration instructs GitHub to automatically remove the Artifact after *
 A few important constraints apply:
 
 ```text
-Minimum Retention (Workflow Level): 1 Day
-Maximum Retention (Workflow Level): 90 Days
+Minimum Retention: 1 day
+Maximum for public repositories: 90 days
+Maximum for private repositories: 400 days
 ```
 
-The **`retention-days`** parameter currently supports values between **1 and 90 days**. If a value is not specified, GitHub automatically uses the repository's configured retention policy.
+The value for **`retention-days`** cannot exceed the retention limit configured by the repository, organization, or enterprise. If a value is not specified, GitHub automatically uses the repository's configured retention policy.
 
 Repository-level retention settings can be configured from ***Repository Settings → Actions → General → Artifact and Log Retention***. This allows repository administrators to centrally control how long workflow-generated data remains available and helps ensure retention policies align with organizational operational, security, compliance, audit, and governance requirements.
 
-> **Note:** At the **workflow level**, the **`retention-days`** parameter supports a maximum value of **90 days** for an individual Artifact. At the **repository level**, administrators can configure the **Artifact and log retention period** for up to **400 days**. The effective retention period for an Artifact is determined by these repository-level retention policies.
+> **Note:** Public repositories support **1–90 days**. Private repositories support **1–400 days**, subject to organization and enterprise limits. Changing the repository setting applies only to new artifacts and logs, not retroactively to existing ones.
 
 > **Retention & Best Practices**
 >
@@ -975,7 +1006,7 @@ git add .
 git commit -m "feat: add artifacts demo"
 
 # Associate the local repository with the remote GitHub repository (one-time setup)
-git remote add origin git@github.com:CloudWithVarJosh/cwvj-gha-practice.git
+git remote add origin git@github.com:prankbox/gha-practice.git
 
 # Push the code to GitHub and configure the local branch to track origin/main
 git push -u origin main
@@ -1008,6 +1039,21 @@ Click **Run Workflow** to start the workflow.
 ---
 
 ### Step 5: Running the Workflow
+
+```bash
+gh workflow run 01-artifacts-demo.yaml --ref main
+gh run list --workflow 01-artifacts-demo.yaml --limit 5
+gh run watch RUN_ID --exit-status
+gh run view RUN_ID --log-failed
+```
+
+After completion, download the lesson artifact without opening the run page:
+
+```bash
+gh run download RUN_ID \
+  --name flask-ci-artifacts \
+  --dir downloaded-artifacts
+```
 
 Inside the repository:
 
@@ -1076,12 +1122,12 @@ When reviewing the logs for the **Review Downloaded Artifacts** step, you should
 ```text
 ===== Smoke Test Report =====
 
-{"message":"Welcome to Cloud With VarJosh","platform":"GitHub Actions","runtime":"Docker + Flask"}
+{"message":"Welcome to the GitHub Actions Demo","platform":"GitHub Actions","runtime":"Docker + Flask"}
 {"status":"healthy"}
 
 ===== Container Logs =====
 
-Cloud With VarJosh Flask Application Started
+Flask Application Started
  * Serving Flask app 'app'
  * Debug mode: off
 Home endpoint invoked
@@ -1321,6 +1367,16 @@ No  → Generate Files → Save Cache
 >
 > The purpose of caching is to reuse previously downloaded or generated assets, not to preserve important workflow outputs.
 
+### Cache Security and Trust Boundaries
+
+Treat a restored cache as **untrusted build input**, not as a security boundary:
+
+* Never cache secrets, credentials, signing keys, tokens, or other sensitive data.
+* Pull requests from forks can restore caches created for the base branch. Do not assume cache contents are private merely because the fork cannot save a new base-branch cache.
+* Allow cache creation only from trusted events and code. Be especially careful with privileged `workflow_run` workflows, which can expose write-capable tokens or secrets after untrusted code has influenced a cache.
+* Include lockfile hashes, operating system, architecture, and tool versions in keys where they affect compatibility. Validate restored executables before running them in a privileged job.
+* Prefer the built-in cache support in setup actions when it fits the package manager; it reduces duplicated key and path logic, but the same trust rules still apply.
+
 > **Important:** Although both **Artifacts** and **Caches** store files in **GitHub-managed storage**, they are designed for different purposes. **Artifacts** are primarily used to preserve **files generated during the software delivery lifecycle**, such as application binaries, test reports, coverage reports, security scan results, and deployment logs. These files can be **downloaded directly from the GitHub Actions UI** by engineers or consumed by downstream jobs. **Caches**, on the other hand, are primarily used to store **files downloaded or generated by build tools**, most commonly **dependencies** retrieved from the internet (for example, Maven, NPM, Pip, or Gradle packages) and other reusable build assets. Unlike Artifacts, **Caches are not intended for manual download or inspection by users**; they exist solely to speed up workflow execution by avoiding repeated downloads or regeneration of the same files. Another important distinction is retention: **Artifacts are retained for 90 days by default** (unless configured otherwise), whereas **Caches are automatically evicted if they are not accessed for more than 7 days** by default.
 
 
@@ -1356,11 +1412,11 @@ Before starting this demo, ensure that you already:
 These concepts were covered extensively in **Lecture 01**.
 
 * [Lecture 01 Video](https://youtu.be/w4c_NIjO3XI)
-* [Lecture 01 GitHub Notes](https://github.com/CloudWithVarJosh/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions)
+* [Lecture 01 GitHub Notes](https://github.com/prankbox/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions)
 
 For this lecture, we will use the following repository:
 
-* **Repository Name:** `cwvj-gha-practice`
+* **Repository Name:** `gha-practice`
 * **Visibility:** Private
 
 > **Operational Note:** GitHub Actions workflows execute directly inside repositories. Whenever workflow YAML files are pushed into the repository, GitHub automatically discovers them and evaluates whether they should execute based on their configured workflow triggers.
@@ -1394,6 +1450,7 @@ Recommended directory structure:
 ```text
 project-files/
 ├── app.py
+├── test_app.py
 ├── requirements.txt
 └── .github/
     └── workflows/
@@ -1422,14 +1479,14 @@ import os
 
 app = Flask(__name__)
 
-print("Cloud With VarJosh Flask Application Started")
+print("Flask Application Started")
 
 @app.get("/")
 def home():
     print("Home endpoint invoked")
 
     return jsonify(
-        message="Welcome to Cloud With VarJosh",
+        message="Welcome to the GitHub Actions Demo",
         platform="GitHub Actions",
         runtime="Python + Flask"
     )
@@ -1459,16 +1516,35 @@ The application itself is intentionally simple because our focus is not on Flask
 
 ---
 
-#### Step 2.2: Create the Requirements File
+#### Step 2.2: Create the Test File
+
+Create **`test_app.py`** so the Test Job performs a real assertion:
+
+```python
+from app import app
+
+
+def test_health_endpoint():
+    response = app.test_client().get("/health")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"status": "healthy"}
+```
+
+The test uses Flask's in-process test client, so it does not need to start a background web server or bind a network port.
+
+---
+
+#### Step 2.3: Create the Requirements File
 
 Create the following dependency file:
 
 **`requirements.txt`**
 
 ```text
-flask==3.1.1
-requests==2.32.4
-pytest==8.4.1
+flask==3.1.3
+requests==2.34.2
+pytest==9.1.1
 ```
 
 ##### Understanding the Requirements File
@@ -1484,9 +1560,9 @@ The dependencies used in this demo are:
 The following lines instruct Python to install specific package versions:
 
 ```text
-flask==3.1.1
-requests==2.32.4
-pytest==8.4.1
+flask==3.1.3
+requests==2.34.2
+pytest==9.1.1
 ```
 
 Pinning dependency versions is considered a **best practice** because it helps ensure consistent behavior across:
@@ -1524,13 +1600,16 @@ name: 01 - Caching Demo
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-job:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -1560,7 +1639,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -1581,6 +1660,9 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install -r requirements.txt
+
+      - name: Run Tests
+        run: pytest -q
 ```
 
 #### Explanation
@@ -1679,7 +1761,7 @@ runs-on: ubuntu-latest
 
 ```yaml
 - name: Checkout Repository
-  uses: actions/checkout@v5
+  uses: actions/checkout@v7
 ```
 
 * This step downloads the repository contents onto the runner.
@@ -1819,9 +1901,9 @@ pip install -r requirements.txt
 pip downloads the packages defined in:
 
 ```text
-flask==3.1.1
-requests==2.32.4
-pytest==8.4.1
+flask==3.1.3
+requests==2.34.2
+pytest==9.1.1
 ```
 
 * These downloaded packages are stored inside **`~/.cache/pip`**.
@@ -1913,17 +1995,17 @@ requirements.txt
 ```
 
 ```text
-flask==3.1.1
-requests==2.32.4
-pytest==8.4.1
+flask==3.1.3
+requests==2.34.2
+pytest==9.1.1
 ```
 
 Later:
 
 ```text
-flask==3.1.1
-requests==2.32.4
-pytest==8.4.1
+flask==3.1.3
+requests==2.34.2
+pytest==9.1.1
 pandas==2.3.1
 ```
 
@@ -2054,7 +2136,7 @@ This output becomes extremely useful during **troubleshooting** because it immed
 > In the Outputs lecture, we manually created an output:
 >
 > ```yaml
-> echo "release_version=v1.0.1" >> $GITHUB_OUTPUT
+> echo "release_version=v1.0.1" >> "$GITHUB_OUTPUT"
 > ```
 >
 > and later consumed it using:
@@ -2382,7 +2464,7 @@ git add .
 git commit -m "feat: add caching demo"
 
 # Associate the local repository with the remote GitHub repository (one-time setup)
-git remote add origin git@github.com:CloudWithVarJosh/cwvj-gha-practice.git
+git remote add origin git@github.com:prankbox/gha-practice.git
 
 # Push the code to GitHub and configure the local branch to track origin/main
 git push -u origin main
@@ -2421,6 +2503,17 @@ to start the workflow.
 ---
 
 ### Step 5: Running the Workflow
+
+Run the caching demo at least twice and compare the logs:
+
+```bash
+gh workflow run 01-caching-demo.yaml --ref main
+gh run list --workflow 01-caching-demo.yaml --limit 5
+gh run watch RUN_ID --exit-status
+gh run view RUN_ID --log
+```
+
+Repeat `gh workflow run`, then inspect the new run ID to compare the cache miss and cache hit.
 
 Inside the repository:
 

@@ -418,11 +418,11 @@ Before starting this demo, ensure that you already:
 
 These concepts were covered extensively in **Lecture 01.**
 * [Lecture 01 Video](https://youtu.be/w4c_NIjO3XI?)
-* [Lecture 01 GitHub Notes](https://github.com/CloudWithVarJosh/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions?)
+* [Lecture 01 GitHub Notes](https://github.com/prankbox/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions)
 
 For this lecture, we will use the following repository:
 
-* **Repository Name:** `cwvj-gha-practice`
+* **Repository Name:** `gha-practice`
 * **Visibility:** Private
 
 ---
@@ -599,7 +599,7 @@ This step becomes important because:
 Now connect the local repository to your GitHub repository:
 
 ```bash id="t4n7zk"
-git remote add origin git@github.com:<YOUR_GITHUB_USERNAME>/<YOUR_REPOSITORY_NAME>.git
+git remote add origin git@github.com:prankbox/<YOUR_REPOSITORY_NAME>.git
 ```
 
 > **Important:** Ensure your GitHub repository already exists and authentication with GitHub is configured properly. These concepts were covered extensively in **Lecture 01**.
@@ -703,6 +703,12 @@ git commit -m "feat: trigger workflow from feature branch"
 git push -u origin feature/trigger-demo
 ```
 
+```bash
+gh run list --workflow 01-filter-type-demo.yaml --branch feature/trigger-demo --limit 5
+gh run watch RUN_ID --exit-status
+gh run view RUN_ID --log-failed
+```
+
 This time the workflow executes successfully because:
 
 * a valid **`push`** event occurred
@@ -732,6 +738,17 @@ Now navigate to the **Actions** tab in the **GitHub UI** and observe:
 ---
 
 ### Step 7: Creating a Pull Request and Observing Workflow Execution
+
+Create and inspect the pull request from the terminal where practical:
+
+```bash
+gh pr create --base main --head feature/trigger-demo --fill
+gh pr status
+gh pr checks --watch
+gh run list --workflow 01-filter-type-demo.yaml --limit 10
+```
+
+If your branch has a different name, replace `feature/trigger-demo`. Use `gh run view RUN_ID --log-failed` to troubleshoot a failed run.
 
 Now create the following pull request:
 
@@ -886,7 +903,16 @@ As a general guideline:
 * use **repository-level variables** for values shared across multiple workflows in the same repository
 * use **organization-level variables** for values shared across multiple repositories within an organization
 
-> **Note:** **Repository-level** and **organization-level variables** are configured through the **GitHub UI**, whereas variables defined using **`env:`** are declared directly inside the **workflow YAML file**.
+> **Note:** Repository- and organization-level variables can be configured with GitHub CLI as well as the web UI. Variables defined using **`env:`** remain part of the workflow YAML file.
+
+```bash
+# Repository variable
+gh variable set APPLICATION_NAME --body flask-app
+gh variable list
+
+# Organization variable, when you have suitable organization permissions
+gh variable set DEFAULT_REGION --org YOUR_ORGANIZATION --visibility all --body us-east-1
+```
 
 In GitHub Actions, variables are primarily of **two types**:
 
@@ -936,7 +962,7 @@ Example:
 ```yaml id="m7q2pk"
 env:
   APPLICATION_NAME: payment-service
-  OWNER: CloudWithVarJosh
+  OWNER: prankbox
 ```
 
 Usage:
@@ -1387,7 +1413,7 @@ Run the following commands:
 
 ```bash id="w24w6y"
 # connect the local repository to the remote github repository
-git remote add origin git@github.com:<YOUR_GITHUB_USERNAME>/<YOUR_REPOSITORY_NAME>.git
+git remote add origin git@github.com:prankbox/<YOUR_REPOSITORY_NAME>.git
 
 # add all changes to the staging area
 git add .
@@ -1429,6 +1455,14 @@ the workflow executes automatically because:
 ---
 
 ### Step 4: Observe Workflow Execution
+
+```bash
+gh run list --workflow 02-expressions-variables-contexts-demo.yaml --limit 5
+gh run watch RUN_ID --exit-status
+gh run view RUN_ID --log
+```
+
+These commands provide the run status and logs directly in the terminal. Use the web graph only when its visual representation adds value.
 
 Navigate to the **GitHub Actions** tab and open the workflow logs.
 

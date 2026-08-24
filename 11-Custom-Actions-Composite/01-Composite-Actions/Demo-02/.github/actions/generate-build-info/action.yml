@@ -21,24 +21,33 @@ runs:
   steps:
     - name: Generate Build Information
       shell: bash
+      env:
+        APPLICATION_NAME: ${{ inputs.application-name }}
+        DEPLOYMENT_ENVIRONMENT: ${{ inputs.environment }}
+        REPOSITORY: ${{ github.repository }}
+        BRANCH: ${{ github.ref_name }}
+        COMMIT_SHA: ${{ github.sha }}
+        RUN_NUMBER: ${{ github.run_number }}
+        WORKFLOW_NAME: ${{ github.workflow }}
+        TRIGGERING_ACTOR: ${{ github.actor }}
       run: |
-        set -e
+        set -euo pipefail
 
         mkdir -p output
 
         BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-        cat <<EOF > output/build-info.txt
-        Application : ${{ inputs.application-name }}
-        Environment : ${{ inputs.environment }}
-        Repository  : ${{ github.repository }}
-        Branch      : ${{ github.ref_name }}
-        Commit SHA  : ${{ github.sha }}
-        Run Number  : ${{ github.run_number }}
-        Workflow    : ${{ github.workflow }}
-        Triggered By: ${{ github.actor }}
-        Build Time  : ${BUILD_TIME}
-        EOF
+        printf '%s\n' \
+          "Application : ${APPLICATION_NAME}" \
+          "Environment : ${DEPLOYMENT_ENVIRONMENT}" \
+          "Repository  : ${REPOSITORY}" \
+          "Branch      : ${BRANCH}" \
+          "Commit SHA  : ${COMMIT_SHA}" \
+          "Run Number  : ${RUN_NUMBER}" \
+          "Workflow    : ${WORKFLOW_NAME}" \
+          "Triggered By: ${TRIGGERING_ACTOR}" \
+          "Build Time  : ${BUILD_TIME}" \
+          > output/build-info.txt
 
         echo "======================================"
         echo "Build Information"

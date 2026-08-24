@@ -132,7 +132,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Print Message
         run: echo "Repository successfully checked out"
@@ -140,7 +140,7 @@ jobs:
 
 In the above workflow:
 
-* **`actions/checkout@v6`** is an official GitHub Action maintained by GitHub
+* **`actions/checkout@v7`** is an official GitHub Action maintained by GitHub
 * it downloads repository code into the runner filesystem
 * without this action, the runner initially does not contain repository files
 * the **`uses:` keyword** tells GitHub Actions to execute reusable packaged automation logic
@@ -155,7 +155,7 @@ In the above workflow:
 >
 > ```yaml id="h9m4ks"
 > steps:
->   - uses: actions/checkout@v6
+>   - uses: actions/checkout@v7
 >   - run: echo "Repository successfully checked out"
 > ```
 >
@@ -193,6 +193,30 @@ Useful evaluation indicators commonly include:
 * issue responsiveness and contributor activity
 * source code transparency and documentation quality
 * organizational reputation and ecosystem trustworthiness
+
+### Production Security: Pin Actions and Limit Token Permissions
+
+The examples in this course use readable major-version tags such as `actions/checkout@v7`. A major tag is convenient for learning and automatically receives compatible fixes, but the tag can move to a different commit.
+
+For security-sensitive production workflows, pin third-party actions to a reviewed full-length commit SHA:
+
+```yaml
+- name: Run reviewed action
+  uses: OWNER/ACTION@FULL_40_CHARACTER_COMMIT_SHA # v1.2.3
+```
+
+A full commit SHA is the only immutable action reference. Keep the human-readable release in a comment and use Dependabot or another controlled update process to propose reviewed SHA updates.
+
+Workflows should also explicitly grant the minimum permissions required by `GITHUB_TOKEN`:
+
+```yaml
+permissions:
+  contents: read
+```
+
+Add write permissions only to the job that needs them. For example, publishing to GitHub Container Registry commonly requires `packages: write`, while an ordinary build normally does not.
+
+> **Security Insight:** Verified publishers and Marketplace popularity are useful trust signals, but they do not replace immutable references, source review, least-privilege token permissions, and controlled dependency updates.
 
 ---
 
@@ -355,11 +379,11 @@ Before starting this demo, ensure that you already:
 
 These concepts were covered extensively in **Lecture 01.**
 * [Lecture 01 Video](https://youtu.be/w4c_NIjO3XI?)
-* [Lecture 01 GitHub Notes](https://github.com/CloudWithVarJosh/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions?)
+* [Lecture 01 GitHub Notes](https://github.com/prankbox/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions)
 
 For this lecture, we will use the following repository:
 
-* **Repository Name:** `cwvj-gha-practice`
+* **Repository Name:** `gha-practice`
 * **Visibility:** Private
 
 > **Operational Note:** GitHub Actions workflows execute directly inside repositories. Whenever workflow YAML files are pushed into the repository, GitHub automatically detects and evaluates them based on configured workflow triggers.
@@ -405,7 +429,7 @@ app = Flask(__name__)
 @app.get("/")
 def home():
     return jsonify(
-        message="Welcome to Cloud With VarJosh",
+        message="Welcome to the GitHub Actions Demo",
         platform="GitHub Actions",
         runtime="Docker + Flask"
     )
@@ -517,7 +541,7 @@ Create the following dependency file:
 **`requirements.txt`**
 
 ```text id="t6m2qp"
-flask==3.1.1
+flask==3.1.3
 ```
 
 This file defines the Python dependencies required by the application.
@@ -532,7 +556,7 @@ In this demo, we are using **Flask**, which is a lightweight Python web framewor
 The line:
 
 ```text id="m7q2pk"
-flask==3.1.1
+flask==3.1.3
 ```
 
 tells Python to install:
@@ -560,10 +584,13 @@ Create the following workflow file:
 **`.github/workflows/01-actions-demo.yaml`**
 
 ```yaml id="v7m5qa"
-name: 01 - CWVJ Flask CI Pipeline
+name: 01 - Flask CI Pipeline
 
 on:
   push:
+
+permissions:
+  contents: read
 
 jobs:
   flask-ci-job:
@@ -571,18 +598,21 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Build Docker Image
-        run: docker build -t cwvj-flask-app:v1.0.0 .
+        run: docker build -t flask-app:v1.0.0 .
 
       - name: Run Container
-        run: docker run -d -p 5000:5000 --name cwvj-flask-container cwvj-flask-app:v1.0.0
+        run: docker run -d -p 5000:5000 --name flask-container flask-app:v1.0.0
 
       - name: Smoke Test
         run: |
-          sleep 5
-          curl http://localhost:5000/health
+          for attempt in {1..10}; do
+            curl --fail-with-body --silent --show-error http://localhost:5000/health && exit 0
+            sleep 2
+          done
+          exit 1
 ```
 
 ---
@@ -611,7 +641,7 @@ This tells GitHub Actions to:
 
 ```yaml id="c8v1tr"
 - name: Checkout Repository
-  uses: actions/checkout@v6
+  uses: actions/checkout@v7
 ```
 
 This step:
@@ -630,13 +660,13 @@ Without this step, the runner initially does not contain repository contents.
 
 ```yaml id="k5x9zb"
 - name: Build Docker Image
-  run: docker build -t cwvj-flask-app:v1.0.0 .
+  run: docker build -t flask-app:v1.0.0 .
 ```
 
 This step executes the following Docker command inside the runner:
 
 ```bash id="x8q2pw"
-docker build -t cwvj-flask-app:v1.0.0 .
+docker build -t flask-app:v1.0.0 .
 ```
 
 Explanation:
@@ -645,9 +675,9 @@ Explanation:
 
 * `-t` → assigns a tag to the generated image.
 
-* `cwvj-flask-app:v1.0.0` → full image reference/name.
+* `flask-app:v1.0.0` → full image reference/name.
 
-  * `cwvj-flask-app` = repository name
+  * `flask-app` = repository name
   * `v1.0.0` = image tag/version
 
 * `.` → current directory used as the Docker build context. Docker can access files present inside this directory during image creation.
@@ -668,13 +698,13 @@ Similarly:
 
 ```yaml id="q3w6pl"
 - name: Run Container
-  run: docker run -d -p 5000:5000 --name cwvj-flask-container cwvj-flask-app:v1.0.0
+  run: docker run -d -p 5000:5000 --name flask-container flask-app:v1.0.0
 ```
 
 This step executes the following Docker command:
 
 ```bash id="f4m8ks"
-docker run -d -p 5000:5000 --name cwvj-flask-container cwvj-flask-app:v1.0.0
+docker run -d -p 5000:5000 --name flask-container flask-app:v1.0.0
 ```
 
 Explanation:
@@ -685,8 +715,8 @@ Explanation:
 
   * first `5000` = runner host port
   * second `5000` = container application port
-* `--name cwvj-flask-container` → assigns a custom container name
-* `cwvj-flask-app:v1.0.0` → image used to start the container
+* `--name flask-container` → assigns a custom container name
+* `flask-app:v1.0.0` → image used to start the container
 
 This allows the Flask application running inside the container to become accessible from the runner environment using:
 
@@ -749,7 +779,7 @@ git commit -m "feat: add GitHub Actions demo"
 git branch -M main
 
 # Connect local repository to GitHub
-git remote add origin git@github.com:CloudWithVarJosh/cwvj-gha-practice.git
+git remote add origin git@github.com:prankbox/gha-practice.git
 
 # Push code to GitHub
 git push -u origin main
@@ -760,6 +790,17 @@ git push -u origin main
 ---
 
 ### Step 5: Workflow Verification and Observation
+
+Use the CLI first after pushing the workflow:
+
+```bash
+gh run list --workflow 01-actions-demo.yaml --limit 5
+gh run watch RUN_ID --exit-status
+gh run view RUN_ID --verbose
+gh run view RUN_ID --log-failed
+```
+
+Replace `RUN_ID` with the numeric ID shown by `gh run list`. The Actions tab remains useful when you specifically want the visual job graph.
 
 After pushing the code:
 
@@ -851,7 +892,7 @@ Create a new **private repository**.
 
 Use:
 
-* **Repository Name:** `cwvj-flask-app`
+* **Repository Name:** `flask-app`
 * **Visibility:** Private
 
 > **Operational Insight:** Container registries are a critical component of modern CI/CD pipelines because they act as centralized repositories for storing and distributing container images across environments such as development, staging, testing, and production.
@@ -931,7 +972,7 @@ Create the following secret:
 
 | Secret Name          | Secret Value       |
 | -------------------- | ------------------ |
-| `DOCKERHUB_USERNAME` | `cloudwithvarjosh` |
+| `DOCKERHUB_USERNAME` | `prankbox` |
 
 > **Note:** You must use your own DockerHub username here.
 
@@ -940,6 +981,16 @@ Now create another secret:
 | Secret Name       | Secret Value                     |
 | ----------------- | -------------------------------- |
 | `DOCKERHUB_TOKEN` | Paste the DockerHub access token |
+
+CLI-first alternative:
+
+```bash
+gh secret set DOCKERHUB_USERNAME
+gh secret set DOCKERHUB_TOKEN
+gh secret list
+```
+
+Each `gh secret set` command prompts for the value, keeping it out of the command line and shell history. GitHub lists secret names and update times but never returns secret values.
 
 ---
 
@@ -974,10 +1025,13 @@ Create the following workflow file:
 **`.github/workflows/02-actions-demo.yaml`**
 
 ```yaml id="m7q2pk"
-name: 02 - CWVJ Flask CI Pipeline
+name: 02 - Flask CI Pipeline
 
 on:
   push:
+
+permissions:
+  contents: read
 
 jobs:
   flask-ci-job:
@@ -985,10 +1039,10 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Login to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -998,10 +1052,10 @@ jobs:
         with:
           context: .
           push: true
-          tags: cloudwithvarjosh/cwvj-flask-app:v1.0.1
+          tags: prankbox/flask-app:v1.0.1
 
       - name: Run Container
-        run: docker run -d -p 5000:5000 --name cwvj-flask-container cloudwithvarjosh/cwvj-flask-app:v1.0.1
+        run: docker run -d -p 5000:5000 --name flask-container prankbox/flask-app:v1.0.1
 
       - name: Smoke Test
         run: |
@@ -1017,7 +1071,7 @@ jobs:
 
 ```yaml id="x8q2pw"
 - name: Login to DockerHub
-  uses: docker/login-action@v3
+  uses: docker/login-action@v4
   with:
     username: ${{ secrets.DOCKERHUB_USERNAME }}
     password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -1082,7 +1136,7 @@ These supported inputs are documented in the action documentation.
   with:
     context: .
     push: true
-    tags: cloudwithvarjosh/cwvj-flask-app:v1.0.1
+    tags: prankbox/flask-app:v1.0.1
 ```
 
 This step uses the **Docker-maintained `build-push-action`** to:
@@ -1137,7 +1191,7 @@ after image creation.
 ---
 
 ```yaml id="n4p8qx"
-tags: cloudwithvarjosh/cwvj-flask-app:v1.0.1
+tags: prankbox/flask-app:v1.0.1
 ```
 
 Explanation:
@@ -1147,17 +1201,17 @@ Explanation:
 
 Breakdown:
 
-* `cloudwithvarjosh` → DockerHub account/namespace
-* `cwvj-flask-app` → repository name
+* `prankbox` → Docker Hub account/namespace
+* `flask-app` → repository name
 * `v1.0.1` → image tag/version
 
 This is equivalent to manually tagging an image using:
 
 ```bash id="j2r7mk"
-docker tag <image> cloudwithvarjosh/cwvj-flask-app:v1.0.1
+docker tag <image> prankbox/flask-app:v1.0.1
 ```
 
-> **Important:** You must replace `cloudwithvarjosh` with your own DockerHub username or organization namespace while pushing images into your repository.
+> **Important:** These examples use your Docker Hub username, `prankbox`. Change it if you run the materials under another account or organization namespace.
 
 > **Operational Insight:** The `docker/build-push-action` internally leverages Docker Buildx/BuildKit capabilities, which provide modern container image build features such as optimized caching, multi-platform builds, parallelized build execution, and improved build efficiency.
 
@@ -1208,7 +1262,7 @@ git commit -m "feat: add DockerHub integration workflow"
 git branch -M main
 
 # Connect local repository to GitHub
-git remote add origin git@github.com:CloudWithVarJosh/cwvj-gha-practice.git
+git remote add origin git@github.com:prankbox/gha-practice.git
 
 # Push code to GitHub
 git push -u origin main
@@ -1219,6 +1273,15 @@ git push -u origin main
 ---
 
 ### Step 5: Workflow Verification and Observation
+
+Inspect the Docker publishing workflow from the terminal:
+
+```bash
+gh run list --workflow 02-actions-demo.yaml --limit 5
+gh run watch RUN_ID --exit-status
+gh run view RUN_ID --verbose
+gh run view RUN_ID --log-failed
+```
 
 After pushing the code:
 
@@ -1252,7 +1315,7 @@ After successful workflow completion:
 1. Open DockerHub
 2. Navigate to:
 
-   * `cloudwithvarjosh/cwvj-flask-app`
+   * `prankbox/flask-app`
 3. Observe:
 
    * newly pushed image tag `v1.0.1`

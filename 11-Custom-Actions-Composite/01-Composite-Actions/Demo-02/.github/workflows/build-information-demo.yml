@@ -3,22 +3,22 @@ name: Build Information Demo
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-information-job:
 
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v7
-
       - name: Generate Build Information
         id: build-info
 
-        uses: ./.github/actions/generate-build-info
+        uses: $/.github/actions/generate-build-info
 
         with:
-          application-name: Cloud With VarJosh
+          application-name: GitHub Actions Demo
           environment: Development
 
       - name: Upload Build Information

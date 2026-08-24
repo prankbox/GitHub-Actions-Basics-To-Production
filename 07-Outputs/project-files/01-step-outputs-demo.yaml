@@ -3,6 +3,9 @@ name: 01 - Step Outputs Demo
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   deployment-job:
     runs-on: ubuntu-latest
@@ -12,7 +15,7 @@ jobs:
         run: |
           echo "Deploying application..."
           sleep 3
-          echo "deployment_url=https://cwvj-demo.com" >> $GITHUB_OUTPUT
+          echo "deployment_url=https://demo.example.com" >> "$GITHUB_OUTPUT"
 
       - name: Display Deployment Details
         run: |

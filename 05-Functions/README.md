@@ -565,36 +565,40 @@ matrix
 
 Each context contains multiple properties and values. While developing workflows, engineers often need to understand what information is available within a particular context.
 
-Example:
+For most debugging, print only the properties you actually need:
 
 ```yaml
-run: echo '${{ toJSON(github) }}'
+env:
+  EVENT_NAME: ${{ github.event_name }}
+  REPOSITORY: ${{ github.repository }}
+  REF_NAME: ${{ github.ref_name }}
+run: |
+  printf 'Event: %s\nRepository: %s\nRef: %s\n' \
+    "$EVENT_NAME" "$REPOSITORY" "$REF_NAME"
 ```
 
-The above statement converts the entire:
+`toJSON()` remains useful for inspecting non-sensitive contexts or selected nested objects. For example:
 
-```text
-github
+```yaml
+env:
+  MATRIX_CONTEXT: ${{ toJSON(matrix) }}
+run: echo "$MATRIX_CONTEXT"
 ```
 
-context into JSON and prints it in the workflow logs.
+> **Security Warning:** Do not print the complete `github` context. It includes sensitive properties such as `github.token`. GitHub masks recognized secrets in logs, but masking should not be treated as permission to expose sensitive contexts.
 
 Possible output:
 
 ```json
 {
-  "repository": "CloudWithVarJosh/github-actions-demo",
-  "actor": "varun",
-  "event_name": "push",
-  "ref": "refs/heads/main"
+  "python-version": "3.13",
+  "os": "ubuntu-latest"
 }
 ```
 
-This allows engineers to inspect available properties and understand exactly what data GitHub is making available during workflow execution.
+This allows engineers to inspect relevant properties without unnecessarily placing credentials or other sensitive metadata in workflow logs.
 
-Without `toJSON()`, it would be difficult to view and understand the complete contents of a context object.
-
-> **Production Insight:** The `toJSON()` function is commonly used while developing and troubleshooting workflows to inspect context data, understand event payloads, and discover available properties that can be used in workflow logic.
+> **Production Insight:** Use `toJSON()` selectively while troubleshooting. Treat event payloads and context fields as potentially untrusted data, and avoid logging secrets, tokens, or complete contexts.
 
 ---
 
@@ -797,13 +801,13 @@ These topics were covered in Lecture 01.
 
 **Lecture 01 Video:** [https://youtu.be/w4c_NIjO3XI](https://youtu.be/w4c_NIjO3XI)
 
-**Lecture 01 Notes:** [https://github.com/CloudWithVarJosh/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions](https://github.com/CloudWithVarJosh/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions)
+**Lecture 01 Notes:** [https://github.com/prankbox/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions](https://github.com/prankbox/GitHub-Actions-Basics-To-Production/tree/main/01-GitHub-Actions)
 
 For this demo, we will use:
 
 | Property        | Value               |
 | --------------- | ------------------- |
-| Repository Name | `cwvj-gha-practice` |
+| Repository Name | `gha-practice` |
 | Visibility      | Private             |
 
 > **Operational Note:** GitHub Actions workflows are repository-scoped. Whenever workflow YAML files are pushed into a repository, GitHub automatically evaluates workflow triggers and determines whether a workflow execution should be created.
@@ -818,7 +822,7 @@ Use the following values:
 
 | Property        | Value            |
 | --------------- | ---------------- |
-| Repository Name | `cwvj-flask-app` |
+| Repository Name | `flask-app` |
 | Visibility      | Private          |
 
 > **Operational Insight:** Container registries act as centralized repositories for storing and distributing container images. Modern CI/CD pipelines commonly publish validated images into registries before deployment to development, staging, or production environments.
@@ -873,6 +877,15 @@ Create the following repository secret:
 | ----------------- | ---------------------- |
 | `DOCKERHUB_TOKEN` | DockerHub Access Token |
 
+Configure and verify it from the terminal:
+
+```bash
+gh secret set DOCKERHUB_TOKEN
+gh secret list
+```
+
+Paste the token only when prompted. Do not place a literal token in `--body` or another command-line argument because it may be retained in shell history.
+
 > **Why GitHub Secrets?** GitHub automatically injects secrets into workflow runtimes while masking secret values in workflow logs to prevent accidental exposure.
 
 > **Scope Consideration:** GitHub Secrets can be defined at multiple levels. **Repository-level** secrets are accessible only within a specific repository, whereas **organization-level** secrets can be shared across multiple repositories within a GitHub organization. The appropriate scope depends on security requirements, ownership boundaries, and reuse needs.
@@ -893,7 +906,7 @@ project-files
 │   └── requirements.txt
 └── .github
     └── workflows
-        └── 01-cwvj-flask-workflow.yaml
+        └── 01-flask-workflow.yaml
 ```
 
 The application files are placed inside the `app` directory because our workflow builds the container image using:
@@ -923,7 +936,7 @@ def home():
     app.logger.info("Homepage endpoint invoked")
 
     return jsonify(
-        message="Welcome to Cloud With VarJosh",
+        message="Welcome to the GitHub Actions Demo",
         platform="GitHub Actions",
         runtime="Docker + Flask"
     )
@@ -1014,7 +1027,7 @@ Create:
 **`app/requirements.txt`**
 
 ```text
-flask==3.1.1
+flask==3.1.3
 ```
 
 This file defines the Python dependencies required by the application.
@@ -1059,7 +1072,7 @@ Create the following workflow file:
 **`.github/workflows/01-functions-demo.yaml`**
 
 ```yaml
-name: 01 - CWVJ Flask Build Test Publish Pipeline
+name: 01 - Flask Build Test Publish Pipeline
 
 on:
   push:
@@ -1079,8 +1092,8 @@ on:
       - ready_for_review
 
 env:
-  APPLICATION_NAME: cwvj-flask-app
-  DOCKER_USERNAME: cloudwithvarjosh
+  APPLICATION_NAME: flask-app
+  DOCKER_USERNAME: prankbox
 
 jobs:
   flask-build-test-publish-job:
@@ -1090,11 +1103,11 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Generate Dynamic Image Tag
         run: |
-          echo "IMAGE_TAG=v${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}" >> $GITHUB_ENV
+          echo "IMAGE_TAG=v${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
 
       - name: Display Build Information
         run: |
@@ -1105,7 +1118,7 @@ jobs:
           echo "Image Tag: $IMAGE_TAG"
 
       - name: Login to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -1150,7 +1163,7 @@ jobs:
 #### Explanation
 
 ```yaml
-name: 01 - CWVJ Flask Build Test Publish Pipeline
+name: 01 - Flask Build Test Publish Pipeline
 ```
 
 This defines the workflow name **displayed** inside the **GitHub Actions UI**.
@@ -1253,8 +1266,8 @@ Examples:
 
 ```yaml
 env:
-  APPLICATION_NAME: cwvj-flask-app
-  DOCKER_USERNAME: cloudwithvarjosh
+  APPLICATION_NAME: flask-app
+  DOCKER_USERNAME: prankbox
 ```
 
 This block defines **workflow-level variables**.
@@ -1394,7 +1407,7 @@ contains()
 
 ```yaml
 - name: Checkout Repository
-  uses: actions/checkout@v6
+  uses: actions/checkout@v7
 ```
 
 This step uses the official GitHub checkout action.
@@ -1422,7 +1435,7 @@ You're right. For course notes, the direct documentation link should absolutely 
 ```yaml id="8hd7pn"
 - name: Generate Dynamic Image Tag
   run: |
-    echo "IMAGE_TAG=v${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}" >> $GITHUB_ENV
+    echo "IMAGE_TAG=v${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
 ```
 
 This step generates a **dynamic Docker image tag**.
@@ -1490,9 +1503,9 @@ Examples include:
 Sample output:
 
 ```text
-Application: cwvj-flask-app
-Repository: CloudWithVarJosh/cwvj-gha-practice
-Actor: CloudWithVarJosh
+Application: flask-app
+Repository: prankbox/gha-practice
+Actor: prankbox
 Branch: feature/github-actions-functions-demo
 Image Tag: v5-89d52e4
 ```
@@ -1515,7 +1528,7 @@ This information can be extremely useful when reviewing workflow logs, investiga
 
 ```yaml
 - name: Login to DockerHub
-  uses: docker/login-action@v3
+  uses: docker/login-action@v4
 ```
 
 This step authenticates the runner with DockerHub.
@@ -1559,7 +1572,7 @@ app/
 The image is tagged as:
 
 ```text
-cloudwithvarjosh/cwvj-flask-app:v5-89d52e4
+prankbox/flask-app:v5-89d52e4
 ```
 
 using:
@@ -1731,7 +1744,7 @@ git add .
 git commit -m "feat: trigger workflow from main branch"
 
 # Configure the GitHub remote repository
-git remote add origin git@github.com:CloudWithVarJosh/cwvj-gha-practice.git
+git remote add origin git@github.com:prankbox/gha-practice.git
 
 # Push code to the main branch
 git push -u origin main
@@ -1739,9 +1752,16 @@ git push -u origin main
 
 #### Observations
 
-Once the push completes, navigate to:
+Once the push completes, inspect the automatically triggered run from the terminal:
 
-**GitHub Repository → Actions**
+```bash
+gh run list --workflow 01-functions-demo.yaml --branch main --limit 5
+gh run watch RUN_ID --exit-status
+gh run view RUN_ID --verbose
+gh run view RUN_ID --log-failed
+```
+
+Alternatively, use **GitHub Repository → Actions** when you want the visual workflow graph.
 
 You should observe:
 
@@ -1749,7 +1769,7 @@ You should observe:
 * the workflow name appears as:
 
 ~~~text
-01 - CWVJ Flask Build Test Publish Pipeline
+01 - Flask Build Test Publish Pipeline
 ~~~
 
 * the workflow execution was triggered by the configured **push event**
@@ -1894,7 +1914,7 @@ If everything succeeds, a new container image should be visible inside your Dock
 Example:
 
 ~~~text
-cloudwithvarjosh/cwvj-flask-app:v5-89d52e4
+prankbox/flask-app:v5-89d52e4
 ~~~
 
 > **Production Insight:** Many engineering teams execute validation workflows on feature branches before a pull request is created. This allows developers to detect issues early and reduce failed pull request validations later in the development lifecycle.
